@@ -7,6 +7,7 @@ final class ServerManager {
     var servers: [ServerConfig] = []
     var activeServerID: ServerID?
     var hasCompletedOnboarding: Bool = false
+    var requireFaceID: Bool = false
 
     private let defaults: UserDefaults
     private let storageKey = "agentpocket_servers_v2"
@@ -70,15 +71,17 @@ final class ServerManager {
             servers = state.servers
             activeServerID = state.activeServerID
             hasCompletedOnboarding = state.hasCompletedOnboarding ?? false
+            requireFaceID = state.requireFaceID ?? false
         } else {
             servers = []
             activeServerID = nil
             hasCompletedOnboarding = false
+            requireFaceID = false
         }
     }
 
     func save() {
-        let state = PersistedState(servers: servers, activeServerID: activeServerID, hasCompletedOnboarding: hasCompletedOnboarding)
+        let state = PersistedState(servers: servers, activeServerID: activeServerID, hasCompletedOnboarding: hasCompletedOnboarding, requireFaceID: requireFaceID)
         guard let data = try? encoder.encode(state) else { return }
         defaults.set(data, forKey: storageKey)
     }
@@ -88,4 +91,5 @@ private struct PersistedState: Codable {
     var servers: [ServerConfig]
     var activeServerID: ServerID?
     var hasCompletedOnboarding: Bool?
+    var requireFaceID: Bool?
 }

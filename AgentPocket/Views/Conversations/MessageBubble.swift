@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MessageBubble: View {
     let message: Message
-    @Environment(AppState.self) private var appState
+    var streamingText: [ContentID: String] = [:]
     
     var isUser: Bool {
         message.role == .user
@@ -35,8 +35,8 @@ struct MessageBubble: View {
     private func contentView(for content: MessageContent) -> some View {
         switch content.data {
         case .text(let textContent):
-            if let streamingText = appState.conversationStore.getStreamingText(messageID: message.id, contentID: content.id) {
-                StreamingTextView(text: streamingText)
+            if let streaming = streamingText[content.id] {
+                StreamingTextView(text: streaming)
             } else {
                 MarkdownRenderer(text: textContent.text)
             }

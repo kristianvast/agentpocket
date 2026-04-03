@@ -3,6 +3,7 @@ import SwiftUI
 struct ServerListView: View {
     @Environment(AppState.self) private var appState
     @State private var showingAddServer = false
+    @State private var showingSettings = false
     @State private var connectingServer: ServerConfig?
 
     var body: some View {
@@ -34,6 +35,14 @@ struct ServerListView: View {
             }
             .navigationTitle("Servers")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .foregroundStyle(Theme.textMuted)
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showingAddServer = true
@@ -44,6 +53,9 @@ struct ServerListView: View {
             }
             .sheet(isPresented: $showingAddServer) {
                 AddServerView()
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
             }
             .overlay {
                 if appState.serverManager.servers.isEmpty {

@@ -3,6 +3,7 @@ import SwiftUI
 struct MessageTimeline: View {
     let conversationID: ConversationID
     @Environment(AppState.self) private var appState
+    @State private var initialLoadDone = false
 
     private var messages: [Message] {
         appState.conversationStore.messages[conversationID] ?? []
@@ -15,7 +16,7 @@ struct MessageTimeline: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: Theme.spacingMD) {
+                VStack(spacing: Theme.spacingMD) {
                     if isLoading && messages.isEmpty {
                         ForEach(0..<3, id: \.self) { _ in
                             SkeletonMessageRow()
@@ -23,29 +24,25 @@ struct MessageTimeline: View {
                     }
 
                     ForEach(messages) { message in
-                        MessageBubble(message: message)
+                        let streamingText = appState.conversationStore.streamingTextForMessage(message.id)
+                        MessageBubble(message: message, streamingText: streamingText)
                             .id(message.id)
-                            .transition(
-                                .asymmetric(
-                                    insertion: .move(edge: .bottom).combined(with: .opacity),
-                                    removal: .opacity
-                                )
-                            )
                     }
                 }
                 .padding()
-                .animation(Theme.springAnimation, value: messages.count)
             }
-            .onChange(of: messages.count) { _, _ in
-                if let lastMessage = messages.last {
-                    withAnimation(Theme.springAnimation) {
-                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: messages.count) { oldCount, newCount in
+                if !initialLoadDone {
+                    guard newCount > 0 else { return }
+                    initialLoadDone = true
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(messages.last?.id, anchor: .bottom)
                     }
-                }
-            }
-            .onChange(of: appState.conversationStore.streamingText.count) { _, _ in
-                if let lastMessage = messages.last {
-                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                } else if newCount > oldCount {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo(messages.last?.id, anchor: .bottom)
+                    }
                 }
             }
         }

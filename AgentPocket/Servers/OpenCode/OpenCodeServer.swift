@@ -46,8 +46,21 @@ final class OpenCodeServer: AgentServer {
         isConnected = false
     }
 
+    func listProjects() async throws -> [Project] {
+        let response: OpenCodeProjectListResponse = try await httpClient.get(path: "/project")
+        return response.projects.map { $0.asProject() }
+    }
+
     func listConversations() async throws -> [Conversation] {
         let response: OpenCodeSessionListResponse = try await httpClient.get(path: "/session")
+        return response.sessions.map { $0.asConversation() }
+    }
+
+    func listConversations(projectDirectory: String) async throws -> [Conversation] {
+        let response: OpenCodeSessionListResponse = try await httpClient.get(
+            path: "/session",
+            queryItems: [URLQueryItem(name: "directory", value: projectDirectory)]
+        )
         return response.sessions.map { $0.asConversation() }
     }
 

@@ -1,5 +1,72 @@
 import Foundation
 
+// MARK: - OpenCode Project Models
+
+struct OpenCodeProjectListResponse: Decodable, Sendable {
+    let projects: [OpenCodeProject]
+
+    init(from decoder: Decoder) throws {
+        if let container = try? decoder.singleValueContainer(),
+           let projects = try? container.decode([OpenCodeProject].self) {
+            self.projects = projects
+            return
+        }
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.projects =
+            (try? container.decode([OpenCodeProject].self, forKey: .projects))
+            ?? (try? container.decode([OpenCodeProject].self, forKey: .data))
+            ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case projects
+        case data
+    }
+}
+
+struct OpenCodeProject: Codable, Sendable, Hashable {
+    let id: String
+    let worktree: String
+    let vcs: String?
+    let name: String?
+    let icon: OpenCodeProjectIcon?
+    let time: OpenCodeProjectTime?
+    let sandboxes: [String]?
+
+    func asProject() -> Project {
+        Project(
+            id: id,
+            worktree: worktree,
+            name: name,
+            icon: icon.map { ProjectIcon(url: $0.url, color: $0.color) },
+            time: ProjectTime(
+                created: time?.created.map { Date(timeIntervalSince1970: $0 / 1000) } ?? .now,
+                updated: time?.updated.map { Date(timeIntervalSince1970: $0 / 1000) } ?? .now,
+                initialized: time?.initialized.map { Date(timeIntervalSince1970: $0 / 1000) }
+            )
+        )
+    }
+}
+
+struct OpenCodeProjectIcon: Codable, Sendable, Hashable {
+    let url: String?
+    let override: String?
+    let color: String?
+
+    enum CodingKeys: String, CodingKey {
+        case url
+        case override = "override"
+        case color
+    }
+}
+
+struct OpenCodeProjectTime: Codable, Sendable, Hashable {
+    let created: Double?
+    let updated: Double?
+    let initialized: Double?
+}
+
 // MARK: - OpenCode Session Models
 
 struct OpenCodeSessionListResponse: Decodable, Sendable {
@@ -53,6 +120,19 @@ struct OpenCodeSessionCreateResponse: Decodable, Sendable {
     }
 }
 
+struct OpenCodeSessionTime: Codable, Sendable, Hashable {
+    let created: Double?
+    let updated: Double?
+    let compacting: Double?
+    let archived: Double?
+}
+
+struct OpenCodeSessionSummary: Codable, Sendable, Hashable {
+    let additions: Int?
+    let deletions: Int?
+    let files: Int?
+}
+
 struct OpenCodeSession: Codable, Sendable, Hashable {
     let id: String
     let title: String?
@@ -64,19 +144,53 @@ struct OpenCodeSession: Codable, Sendable, Hashable {
     let totalTokens: Int?
     let totalCost: Double?
 
+    // v2 fields from OpenCode API
+    let projectID: String?
+    let directory: String?
+    let slug: String?
+    let version: String?
+    let parentID: String?
+    let time: OpenCodeSessionTime?
+    let summary: OpenCodeSessionSummary?
+
+    var resolvedCreatedAt: Date {
+        if let ms = time?.created {
+            return Date(timeIntervalSince1970: ms / 1000)
+        }
+        return createdAt?.value ?? .now
+    }
+
+    var resolvedUpdatedAt: Date {
+        if let ms = time?.updated {
+            return Date(timeIntervalSince1970: ms / 1000)
+        }
+        return updatedAt?.value ?? createdAt?.value ?? .now
+    }
+
     func asConversation() -> Conversation {
         Conversation(
             id: id,
             title: title,
-            createdAt: createdAt?.value ?? .now,
-            updatedAt: updatedAt?.value ?? createdAt?.value ?? .now,
+            createdAt: resolvedCreatedAt,
+            updatedAt: resolvedUpdatedAt,
             status: Self.mapStatus(status),
             metadata: ConversationMetadata(
                 serverType: .openCode,
                 agentName: agentName,
                 modelName: modelName,
                 totalTokens: totalTokens,
-                totalCost: totalCost
+                totalCost: totalCost,
+                projectID: projectID,
+                directory: directory,
+                slug: slug,
+                version: version,
+                summary: summary.map {
+                    SessionSummary(
+                        additions: $0.additions ?? 0,
+                        deletions: $0.deletions ?? 0,
+                        files: $0.files ?? 0
+                    )
+                }
             )
         )
     }
@@ -524,13 +638,13 @@ struct OpenCodeFlexibleDate: Codable, Hashable, Sendable {
 }
 
 private extension ISO8601DateFormatter {
-    static let full: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let full: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
     }()
 
-    static let fractional: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let fractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter

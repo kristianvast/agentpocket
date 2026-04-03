@@ -24,20 +24,31 @@ struct ContentView: View {
         if !appState.serverManager.hasCompletedOnboarding {
             OnboardingView()
         } else if appState.isConnected {
-            NavigationSplitView {
-                ConversationListView()
-            } detail: {
-                if let activeConversation = appState.conversationStore.activeConversation {
-                    ConversationView(conversation: activeConversation)
-                } else {
-                    Text("Select a conversation")
-                        .foregroundStyle(Theme.textMuted)
+            if appState.projectStore.activeProjectID != nil {
+                // Project selected → show sessions + chat
+                NavigationSplitView {
+                    ConversationListView()
+                } detail: {
+                    if let activeConversation = appState.conversationStore.activeConversation {
+                        ConversationView(conversation: activeConversation)
+                    } else {
+                        VStack(spacing: Theme.spacingMD) {
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 40))
+                                .foregroundStyle(Theme.textMuted.opacity(0.5))
+                            Text("Select a session")
+                                .foregroundStyle(Theme.textMuted)
+                        }
+                    }
                 }
-            }
-            .overlay {
-                if !appState.pendingPermissions.isEmpty {
-                    PermissionSheet()
+                .overlay {
+                    if !appState.pendingPermissions.isEmpty {
+                        PermissionSheet()
+                    }
                 }
+            } else {
+                // Connected but no project selected → show project list
+                ProjectListView()
             }
         } else {
             ServerListView()
@@ -72,6 +83,12 @@ struct ContentView: View {
     }
 
     private func authenticate() {
+        guard appState.serverManager.requireFaceID else {
+            isUnlocked = true
+            autoConnect()
+            return
+        }
+
         let context = LAContext()
         var error: NSError?
 

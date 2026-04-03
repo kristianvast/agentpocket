@@ -29,13 +29,14 @@ struct ImagePickerButton: UIViewControllerRepresentable {
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             parent.dismiss()
 
-            guard let provider = results.first?.itemProvider else { return }
+            guard let provider = results.first?.itemProvider,
+                  provider.canLoadObject(ofClass: UIImage.self) else { return }
 
-            if provider.canLoadObject(ofClass: UIImage.self) {
-                provider.loadObject(ofClass: UIImage.self) { image, _ in
-                    DispatchQueue.main.async {
-                        self.parent.image = image as? UIImage
-                    }
+            provider.loadObject(ofClass: UIImage.self) { reading, _ in
+                guard let uiImage = reading as? UIImage else { return }
+                let sendableImage = uiImage
+                Task { @MainActor [weak self] in
+                    self?.parent.image = sendableImage
                 }
             }
         }

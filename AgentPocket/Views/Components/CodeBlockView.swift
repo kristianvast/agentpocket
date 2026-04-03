@@ -5,12 +5,12 @@ struct CodeBlockView: View {
     let code: String
     let language: String
     
-    @State private var highlightedCode: NSAttributedString?
+    @State private var highlightedCode: AttributedString?
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            if let highlightedCode = highlightedCode {
-                Text(AttributedString(highlightedCode))
+            if let highlightedCode {
+                Text(highlightedCode)
                     .font(.system(.caption, design: .monospaced))
                     .padding(8)
             } else {
@@ -29,12 +29,15 @@ struct CodeBlockView: View {
     }
     
     private func highlight() {
+        let codeToHighlight = code
+        let lang = language
         DispatchQueue.global(qos: .userInitiated).async {
             guard let highlightr = Highlightr() else { return }
             highlightr.setTheme(to: "dracula")
-            let highlighted = highlightr.highlight(code, as: language)
+            guard let result = highlightr.highlight(codeToHighlight, as: lang) else { return }
+            let attributed = AttributedString(result)
             DispatchQueue.main.async {
-                self.highlightedCode = highlighted
+                self.highlightedCode = attributed
             }
         }
     }

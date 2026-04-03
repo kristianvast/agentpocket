@@ -3,7 +3,7 @@ import Foundation
 struct HTTPClient: Sendable {
     let baseURL: String
     let authorizationHeader: String?
-    nonisolated(unsafe) let session: URLSession
+    let session: URLSession
 
     init(baseURL: String, authorizationHeader: String? = nil, session: URLSession = .shared) {
         self.baseURL = baseURL

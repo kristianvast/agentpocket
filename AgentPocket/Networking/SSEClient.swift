@@ -4,7 +4,7 @@ final class SSEClient: Sendable {
     let baseURL: String
     let path: String
     let authHeader: String?
-    private nonisolated(unsafe) let session: URLSession
+    private let session: URLSession
 
     init(baseURL: String, path: String, authorizationHeader: String? = nil) {
         self.baseURL = baseURL

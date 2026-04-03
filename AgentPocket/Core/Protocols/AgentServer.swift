@@ -71,6 +71,10 @@ protocol AgentServer: AnyObject, Sendable {
     func connect() async throws
     func disconnect()
 
+    // Projects
+    func listProjects() async throws -> [Project]
+    func listConversations(projectDirectory: String) async throws -> [Conversation]
+
     // Conversations
     func listConversations() async throws -> [Conversation]
     func createConversation() async throws -> Conversation
@@ -96,6 +100,14 @@ protocol AgentServer: AnyObject, Sendable {
 // MARK: - Default Implementations
 
 extension AgentServer {
+    func listProjects() async throws -> [Project] {
+        []
+    }
+
+    func listConversations(projectDirectory: String) async throws -> [Conversation] {
+        try await listConversations()
+    }
+
     func replyToPermission(id: PermissionID, allow: Bool) async throws {
         throw AgentPocketError.unsupported("Permissions not supported by \(serverType.displayName)")
     }

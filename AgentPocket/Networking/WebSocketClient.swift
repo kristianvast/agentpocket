@@ -106,7 +106,8 @@ final class WebSocketClient: NSObject, @unchecked Sendable {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: UInt64(self?.pingInterval ?? 15) * 1_000_000_000)
                 guard !Task.isCancelled else { break }
-                self?.webSocketTask?.sendPing { error in
+                guard let self else { break }
+                self.webSocketTask?.sendPing { [weak self] error in
                     if let error, !Task.isCancelled {
                         Task { @MainActor [weak self] in
                             self?.handleDisconnect(error: error)

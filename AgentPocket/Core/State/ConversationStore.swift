@@ -9,6 +9,7 @@ final class ConversationStore {
     var messages: [ConversationID: [Message]] = [:]
     var streamingText: [String: String] = [:]
     var statuses: [ConversationID: ConversationStatus] = [:]
+    var loadedProjectID: ProjectID?
 
     var activeConversation: Conversation? {
         guard let id = activeConversationID else { return nil }
@@ -18,6 +19,11 @@ final class ConversationStore {
     var activeMessages: [Message] {
         guard let id = activeConversationID else { return [] }
         return messages[id] ?? []
+    }
+
+    func setConversations(_ convs: [Conversation], forProject projectID: ProjectID) {
+        conversations = convs
+        loadedProjectID = projectID
     }
 
     func setMessages(_ msgs: [Message], for conversationID: ConversationID) {
@@ -77,6 +83,16 @@ final class ConversationStore {
 
     func getStreamingText(messageID: MessageID, contentID: ContentID) -> String? {
         streamingText["\(messageID):\(contentID)"]
+    }
+
+    func streamingTextForMessage(_ messageID: MessageID) -> [ContentID: String] {
+        let prefix = "\(messageID):"
+        var result: [ContentID: String] = [:]
+        for (key, value) in streamingText where key.hasPrefix(prefix) {
+            let contentID = String(key.dropFirst(prefix.count))
+            result[contentID] = value
+        }
+        return result
     }
 
     func clearStreamingText(messageID: MessageID, contentID: ContentID) {

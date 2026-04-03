@@ -45,18 +45,33 @@ struct ConversationMetadata: Codable, Hashable, Sendable {
     var modelName: String?
     var totalTokens: Int?
     var totalCost: Double?
+    var projectID: ProjectID?
+    var directory: String?
+    var slug: String?
+    var version: String?
+    var summary: SessionSummary?
 
     init(
         serverType: ServerType? = nil,
         agentName: String? = nil,
         modelName: String? = nil,
         totalTokens: Int? = nil,
-        totalCost: Double? = nil
+        totalCost: Double? = nil,
+        projectID: ProjectID? = nil,
+        directory: String? = nil,
+        slug: String? = nil,
+        version: String? = nil,
+        summary: SessionSummary? = nil
     ) {
         self.serverType = serverType
         self.agentName = agentName
         self.modelName = modelName
         self.totalTokens = totalTokens
         self.totalCost = totalCost
+        self.projectID = projectID
+        self.directory = directory
+        self.slug = slug
+        self.version = version
+        self.summary = summary
     }
 }

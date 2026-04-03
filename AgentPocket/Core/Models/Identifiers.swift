@@ -7,4 +7,5 @@ typealias MessageID = String
 typealias ContentID = String
 typealias ToolID = String
 typealias PermissionID = String
+typealias ProjectID = String
 typealias ServerID = UUID

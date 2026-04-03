@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class AppState {
     var serverManager = ServerManager()
+    var projectStore = ProjectStore()
     var conversationStore = ConversationStore()
 
     var activeServer: (any AgentServer)?
@@ -14,6 +15,7 @@ final class AppState {
 
     var pendingPermissions: [PermissionRequest] = []
     private(set) var isLoadingConversations = false
+    private(set) var isLoadingProjects = false
     private(set) var loadingMessages: Set<ConversationID> = []
 
     private var eventTask: Task<Void, Never>?
@@ -29,7 +31,7 @@ final class AppState {
             activeServer = server
             isConnected = true
             serverManager.markConnected(id: config.id)
-            await loadInitialData()
+            await loadProjects()
             startEventStream()
         } catch {
             connectionError = error.localizedDescription
@@ -45,8 +47,62 @@ final class AppState {
         activeServer?.disconnect()
         activeServer = nil
         isConnected = false
+        projectStore.clear()
         conversationStore.clear()
         pendingPermissions = []
+    }
+
+    func loadProjects() async {
+        guard let server = activeServer else { return }
+
+        isLoadingProjects = true
+        do {
+            let projects = try await server.listProjects()
+            projectStore.setProjects(projects)
+        } catch {
+            // If project listing fails (non-OpenCode server), fall back to flat conversation list
+            projectStore.setProjects([])
+        }
+        isLoadingProjects = false
+    }
+
+    func selectProject(_ project: Project) async {
+        projectStore.activeProjectID = project.id
+
+        // If we already have conversations cached for this project, show them immediately
+        if conversationStore.loadedProjectID == project.id && !conversationStore.conversations.isEmpty {
+            // Refresh in background without showing loading state
+            Task {
+                await refreshConversationsForProject(project)
+            }
+            return
+        }
+
+        // Different project or no cache — full load
+        await loadConversationsForProject(project)
+    }
+
+    func loadConversationsForProject(_ project: Project) async {
+        guard let server = activeServer else { return }
+
+        isLoadingConversations = true
+        do {
+            let conversations = try await server.listConversations(projectDirectory: project.worktree)
+            conversationStore.setConversations(conversations, forProject: project.id)
+        } catch {
+            connectionError = "Failed to load sessions: \(error.localizedDescription)"
+        }
+        isLoadingConversations = false
+    }
+
+    private func refreshConversationsForProject(_ project: Project) async {
+        guard let server = activeServer else { return }
+        do {
+            let conversations = try await server.listConversations(projectDirectory: project.worktree)
+            conversationStore.setConversations(conversations, forProject: project.id)
+        } catch {
+            // Silent fail on background refresh — user already sees cached data
+        }
     }
 
     func loadInitialData() async {
