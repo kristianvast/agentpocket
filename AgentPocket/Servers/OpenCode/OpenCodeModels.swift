@@ -99,17 +99,32 @@ struct OpenCodeMessageListResponse: Decodable, Sendable {
     let messages: [OpenCodeMessage]
 
     init(from decoder: Decoder) throws {
+        // Try v2 format: bare array of {info, parts}
+        if let container = try? decoder.singleValueContainer(),
+           let v2 = try? container.decode([OpenCodePromptResponse].self) {
+            self.messages = v2.map { OpenCodeMessage.fromV2($0) }
+            return
+        }
+
+        // Try old format: bare array of flat messages
         if let container = try? decoder.singleValueContainer(),
            let messages = try? container.decode([OpenCodeMessage].self) {
             self.messages = messages
             return
         }
 
+        // Keyed: { messages: [...] } or { data: [...] }
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.messages =
-            (try? container.decode([OpenCodeMessage].self, forKey: .messages))
-            ?? (try? container.decode([OpenCodeMessage].self, forKey: .data))
-            ?? []
+        if let v2 = try? container.decode([OpenCodePromptResponse].self, forKey: .messages) {
+            self.messages = v2.map { OpenCodeMessage.fromV2($0) }
+        } else if let v2 = try? container.decode([OpenCodePromptResponse].self, forKey: .data) {
+            self.messages = v2.map { OpenCodeMessage.fromV2($0) }
+        } else {
+            self.messages =
+                (try? container.decode([OpenCodeMessage].self, forKey: .messages))
+                ?? (try? container.decode([OpenCodeMessage].self, forKey: .data))
+                ?? []
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -151,7 +166,24 @@ struct OpenCodeMessage: Codable, Sendable, Hashable {
         )
     }
 
-    private static func mapRole(_ raw: String) -> MessageRole {
+    static func fromV2(_ response: OpenCodePromptResponse) -> OpenCodeMessage {
+        OpenCodeMessage(
+            id: response.info.id,
+            sessionID: response.info.sessionID,
+            role: response.info.role,
+            createdAt: response.info.time?.created.map { OpenCodeFlexibleDate(value: Date(timeIntervalSince1970: $0 / 1000)) },
+            parts: response.parts,
+            agentName: response.info.agent,
+            modelID: response.info.modelID,
+            providerID: response.info.providerID,
+            inputTokens: response.info.tokens?.input,
+            outputTokens: response.info.tokens?.output,
+            cost: response.info.cost,
+            finishReason: response.info.finish
+        )
+    }
+
+    static func mapRole(_ raw: String) -> MessageRole {
         switch raw.lowercased() {
         case "assistant", "agent": return .assistant
         case "system": return .system
@@ -162,6 +194,8 @@ struct OpenCodeMessage: Codable, Sendable, Hashable {
 
 struct OpenCodeMessagePart: Codable, Sendable, Hashable {
     let id: String?
+    let messageID: String?
+    let sessionID: String?
     let type: String
     let text: String?
     let name: String?
@@ -235,7 +269,7 @@ struct OpenCodeMessagePart: Codable, Sendable, Hashable {
 // MARK: - OpenCode Requests
 
 struct OpenCodeSendMessageRequest: Encodable, Sendable {
-    let content: [OpenCodeOutgoingPart]
+    let parts: [OpenCodeOutgoingPart]
 }
 
 struct OpenCodeOutgoingPart: Encodable, Sendable {
@@ -272,9 +306,88 @@ struct OpenCodePermissionReplyRequest: Encodable, Sendable {
 
 // MARK: - OpenCode Event Models
 
+// MARK: - OpenCode v2 Message Info (from events and REST API)
+
+struct OpenCodeMessageInfoV2: Decodable, Sendable {
+    let id: String
+    let role: String
+    let sessionID: String?
+    let modelID: String?
+    let providerID: String?
+    let time: OpenCodeTimeV2?
+    let cost: Double?
+    let tokens: OpenCodeTokensV2?
+    let agent: String?
+    let finish: String?
+    let parentID: String?
+}
+
+struct OpenCodeTimeV2: Decodable, Sendable {
+    let created: Double?
+    let completed: Double?
+}
+
+struct OpenCodeTokensV2: Decodable, Sendable {
+    let input: Int?
+    let output: Int?
+    let reasoning: Int?
+}
+
+struct OpenCodePromptResponse: Decodable, Sendable {
+    let info: OpenCodeMessageInfoV2
+    let parts: [OpenCodeMessagePart]
+}
+
+// MARK: - OpenCode Event Properties (v2 envelope)
+
+struct OpenCodeEventProperties: Decodable, Sendable {
+    let sessionID: String?
+    let messageID: String?
+    let partID: String?
+    let field: String?
+    let delta: String?
+    let status: OpenCodeEventStatusPayload?
+    let part: OpenCodeMessagePart?
+    let time: Double?
+
+    // info is polymorphic — session for session.* events, message for message.* events
+    let sessionInfo: OpenCodeSession?
+    let messageInfo: OpenCodeMessageInfoV2?
+
+    enum CodingKeys: String, CodingKey {
+        case sessionID, messageID, partID, field, delta, status, part, time, info
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sessionID = try container.decodeIfPresent(String.self, forKey: .sessionID)
+        messageID = try container.decodeIfPresent(String.self, forKey: .messageID)
+        partID = try container.decodeIfPresent(String.self, forKey: .partID)
+        field = try container.decodeIfPresent(String.self, forKey: .field)
+        delta = try container.decodeIfPresent(String.self, forKey: .delta)
+        status = try container.decodeIfPresent(OpenCodeEventStatusPayload.self, forKey: .status)
+        part = try container.decodeIfPresent(OpenCodeMessagePart.self, forKey: .part)
+        time = try container.decodeIfPresent(Double.self, forKey: .time)
+
+        // Try message info first (has required `role` field, more restrictive)
+        if let msg = try? container.decode(OpenCodeMessageInfoV2.self, forKey: .info) {
+            messageInfo = msg
+            sessionInfo = nil
+        } else {
+            messageInfo = nil
+            sessionInfo = try? container.decode(OpenCodeSession.self, forKey: .info)
+        }
+    }
+}
+
+struct OpenCodeEventStatusPayload: Decodable, Sendable {
+    let type: String?
+}
+
 struct OpenCodeEventEnvelope: Decodable, Sendable {
     let type: String?
     let event: String?
+    let properties: OpenCodeEventProperties?
     let data: OpenCodeEventData?
     let session: OpenCodeSession?
     let message: OpenCodeMessage?
@@ -291,11 +404,15 @@ struct OpenCodeEventEnvelope: Decodable, Sendable {
     }
 
     var eventSession: OpenCodeSession? {
-        session ?? data?.session
+        properties?.sessionInfo ?? session ?? data?.session
     }
 
     var eventMessage: OpenCodeMessage? {
         message ?? data?.message
+    }
+
+    var eventMessageInfoV2: OpenCodeMessageInfoV2? {
+        properties?.messageInfo
     }
 
     var eventPermission: OpenCodePermission? {
@@ -303,15 +420,15 @@ struct OpenCodeEventEnvelope: Decodable, Sendable {
     }
 
     var eventSessionID: String? {
-        sessionID ?? data?.sessionID ?? eventSession?.id ?? eventMessage?.sessionID
+        properties?.sessionID ?? sessionID ?? data?.sessionID ?? eventSession?.id ?? eventMessage?.sessionID ?? eventMessageInfoV2?.sessionID
     }
 
     var eventMessageID: String? {
-        messageID ?? data?.messageID ?? eventMessage?.id
+        properties?.messageID ?? messageID ?? data?.messageID ?? eventMessage?.id ?? eventMessageInfoV2?.id
     }
 
     var eventContentID: String? {
-        contentID ?? data?.contentID
+        properties?.partID ?? contentID ?? data?.contentID
     }
 
     var eventPermissionID: String? {
@@ -319,11 +436,15 @@ struct OpenCodeEventEnvelope: Decodable, Sendable {
     }
 
     var eventDelta: String? {
-        delta ?? data?.delta
+        properties?.delta ?? delta ?? data?.delta
     }
 
     var eventStatus: String? {
-        status ?? data?.status
+        properties?.status?.type ?? status ?? data?.status
+    }
+
+    var eventPart: OpenCodeMessagePart? {
+        properties?.part
     }
 }
 
@@ -364,6 +485,10 @@ struct OpenCodePermission: Codable, Sendable, Hashable {
 
 struct OpenCodeFlexibleDate: Codable, Hashable, Sendable {
     let value: Date
+
+    init(value: Date) {
+        self.value = value
+    }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()

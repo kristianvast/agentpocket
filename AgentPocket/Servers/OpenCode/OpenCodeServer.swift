@@ -66,7 +66,7 @@ final class OpenCodeServer: AgentServer {
     }
 
     func sendMessage(conversationID: ConversationID, content: [MessageContent]) -> AsyncThrowingStream<ServerEvent, Error> {
-        let request = OpenCodeSendMessageRequest(content: content.map { OpenCodeOutgoingPart.from($0) })
+        let request = OpenCodeSendMessageRequest(parts: content.map { OpenCodeOutgoingPart.from($0) })
 
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -93,6 +93,24 @@ final class OpenCodeServer: AgentServer {
 
                         if let mapped = try mapEventPayload(payloadData, fallbackConversationID: conversationID) {
                             continuation.yield(mapped)
+                        } else if let response = try? decoder.decode(OpenCodePromptResponse.self, from: payloadData) {
+                            let message = Message(
+                                id: response.info.id,
+                                conversationID: response.info.sessionID ?? conversationID,
+                                role: OpenCodeMessage.mapRole(response.info.role),
+                                content: response.parts.map { $0.asContent() },
+                                createdAt: response.info.time?.created.map { Date(timeIntervalSince1970: $0 / 1000) } ?? .now,
+                                metadata: MessageMetadata(
+                                    agentName: response.info.agent,
+                                    modelID: response.info.modelID,
+                                    providerID: response.info.providerID,
+                                    inputTokens: response.info.tokens?.input,
+                                    outputTokens: response.info.tokens?.output,
+                                    cost: response.info.cost,
+                                    finishReason: response.info.finish
+                                )
+                            )
+                            continuation.yield(.messageUpdated(conversationID, message))
                         }
                     }
 
@@ -160,57 +178,98 @@ final class OpenCodeServer: AgentServer {
                 if let session = envelope.eventSession {
                     return .conversationCreated(session.asConversation())
                 }
+
             case "session.updated":
                 if let session = envelope.eventSession {
                     return .conversationUpdated(session.asConversation())
                 }
+
             case "session.deleted":
                 if let sessionID = envelope.eventSessionID {
                     return .conversationDeleted(sessionID)
                 }
-            case "message.created":
+
+            case "message.created", "message.updated":
+                // Try legacy full message first
                 if let message = envelope.eventMessage {
                     let conversationID = message.sessionID ?? envelope.eventSessionID ?? fallbackConversationID
-                    return .messageCreated(conversationID, message.asMessage(conversationID: conversationID))
+                    return type == "message.created"
+                        ? .messageCreated(conversationID, message.asMessage(conversationID: conversationID))
+                        : .messageUpdated(conversationID, message.asMessage(conversationID: conversationID))
                 }
-            case "message.updated":
-                if let message = envelope.eventMessage {
-                    let conversationID = message.sessionID ?? envelope.eventSessionID ?? fallbackConversationID
-                    return .messageUpdated(conversationID, message.asMessage(conversationID: conversationID))
+                // v2: message info only (no parts) — create message with empty content
+                if let info = envelope.eventMessageInfoV2 {
+                    let conversationID = info.sessionID ?? envelope.eventSessionID ?? fallbackConversationID
+                    let message = Message(
+                        id: info.id,
+                        conversationID: conversationID,
+                        role: OpenCodeMessage.mapRole(info.role),
+                        content: [],
+                        createdAt: info.time?.created.map { Date(timeIntervalSince1970: $0 / 1000) } ?? .now,
+                        metadata: MessageMetadata(
+                            agentName: info.agent,
+                            modelID: info.modelID,
+                            providerID: info.providerID,
+                            inputTokens: info.tokens?.input,
+                            outputTokens: info.tokens?.output,
+                            cost: info.cost,
+                            finishReason: info.finish
+                        )
+                    )
+                    return type == "message.created"
+                        ? .messageCreated(conversationID, message)
+                        : .messageUpdated(conversationID, message)
                 }
-            case "message.deleted":
-                if let conversationID = envelope.eventSessionID,
+
+            case "message.part.updated":
+                if let part = envelope.eventPart {
+                    let conversationID = envelope.eventSessionID ?? part.sessionID ?? fallbackConversationID
+                    if let messageID = part.messageID ?? envelope.eventMessageID ?? part.id?.components(separatedBy: ":").first {
+                        let content = part.asContent()
+                        return .contentUpdated(conversationID, messageID, content)
+                    }
+                }
+
+            case "message.deleted", "message.removed":
+                if let conversationID = envelope.eventSessionID ?? (fallbackConversationID.isEmpty ? nil : fallbackConversationID),
                    let messageID = envelope.eventMessageID {
                     return .messageDeleted(conversationID, messageID)
                 }
+
             case "message.part.delta", "text.delta", "message.delta":
-                if let conversationID = envelope.eventSessionID ?? fallbackConversationID,
-                   let messageID = envelope.eventMessageID,
+                let conversationID = envelope.eventSessionID ?? fallbackConversationID
+                if let messageID = envelope.eventMessageID,
                    let contentID = envelope.eventContentID,
                    let delta = envelope.eventDelta {
                     return .contentDelta(conversationID, messageID, contentID, delta)
                 }
+
             case "tool.updated", "tool.status":
-                if let conversationID = envelope.eventSessionID ?? fallbackConversationID,
-                   let messageID = envelope.eventMessageID,
+                let conversationID = envelope.eventSessionID ?? fallbackConversationID
+                if let messageID = envelope.eventMessageID,
                    let contentID = envelope.eventContentID {
                     let status = mapToolStatus(envelope.eventStatus)
                     return .toolStatusChanged(conversationID, messageID, contentID, status)
                 }
+
             case "permission.asked":
                 if let permission = envelope.eventPermission {
                     return .permissionRequested(permission.asPermissionRequest())
                 }
+
             case "permission.resolved":
                 if let permissionID = envelope.eventPermissionID {
                     return .permissionResolved(permissionID)
                 }
+
             case "session.status", "status.changed":
                 if let conversationID = envelope.eventSessionID {
                     return .statusChanged(conversationID, OpenCodeSession.mapStatus(envelope.eventStatus))
                 }
+
             case "heartbeat":
                 return .heartbeat
+
             default:
                 break
             }

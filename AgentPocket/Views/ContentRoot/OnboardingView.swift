@@ -32,19 +32,19 @@ struct OnboardingView: View {
                         .foregroundStyle(Theme.textPrimary)
                     
                     VStack(spacing: Theme.spacingMD) {
-                        ServerCard(
+                        OnboardingServerCard(
                             title: "OpenCode",
                             icon: "chevron.left.forwardslash.chevron.right",
                             color: Theme.cyanAccent
                         )
                         
-                        ServerCard(
+                        OnboardingServerCard(
                             title: "OpenClaw",
                             icon: "hand.raised.fingers.spread",
                             color: Theme.emerald
                         )
                         
-                        ServerCard(
+                        OnboardingServerCard(
                             title: "Hermes",
                             icon: "brain.head.profile",
                             color: Theme.orange
@@ -88,7 +88,7 @@ struct OnboardingView: View {
     }
 }
 
-private struct ServerCard: View {
+private struct OnboardingServerCard: View {
     let title: String
     let icon: String
     let color: Color

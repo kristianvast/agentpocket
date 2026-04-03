@@ -51,6 +51,7 @@ enum ServerEvent: Sendable {
     case messageUpdated(ConversationID, Message)
     case messageDeleted(ConversationID, MessageID)
     case contentDelta(ConversationID, MessageID, ContentID, String)
+    case contentUpdated(ConversationID, MessageID, MessageContent)
     case toolStatusChanged(ConversationID, MessageID, ContentID, ToolStatus)
     case permissionRequested(PermissionRequest)
     case permissionResolved(PermissionID)

@@ -35,7 +35,13 @@ final class ConversationStore {
             messages[conversationID] = []
         }
         if let idx = messages[conversationID]?.firstIndex(where: { $0.id == message.id }) {
-            messages[conversationID]?[idx] = message
+            // Preserve existing content if new message has no content (v2 metadata-only update)
+            if message.content.isEmpty {
+                messages[conversationID]?[idx].metadata = message.metadata
+                messages[conversationID]?[idx].createdAt = message.createdAt
+            } else {
+                messages[conversationID]?[idx] = message
+            }
         } else {
             messages[conversationID]?.append(message)
         }

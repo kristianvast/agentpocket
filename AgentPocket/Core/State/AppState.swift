@@ -117,6 +117,9 @@ final class AppState {
                 delta: delta
             )
 
+        case .contentUpdated(let convID, let msgID, let content):
+            conversationStore.updateContent(content, messageID: msgID, conversationID: convID)
+
         case .toolStatusChanged(let convID, let msgID, let contentID, let status):
             if let msgIdx = conversationStore.messages[convID]?.firstIndex(where: { $0.id == msgID }),
                let contentIdx = conversationStore.messages[convID]?[msgIdx].content.firstIndex(where: { $0.id == contentID }),
