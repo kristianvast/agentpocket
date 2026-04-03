@@ -2,21 +2,28 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>AgentPocket</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>AgentPocket</string>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>UILaunchScreen</key>
-	<dict>
-		<key>UIColorName</key>
-		<string>LaunchBackground</string>
-	</dict>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>
@@ -24,34 +31,21 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AgentPocket needs microphone access to record voice messages for your AI agent.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>AgentPocket needs camera access to capture images for your AI agent.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>AgentPocket needs photo library access to attach images to messages.</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>AgentPocket uses Face ID to protect your coding sessions.</string>
-	<key>UIApplicationShortcutItems</key>
+	<string>AgentPocket uses Face ID to protect your agent sessions.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>AgentPocket connects to AI agent servers on your local network.</string>
+	<key>NSBonjourServices</key>
 	<array>
-		<dict>
-			<key>UIApplicationShortcutItemIconType</key>
-			<string>UIApplicationShortcutIconTypeCompose</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>New Session</string>
-			<key>UIApplicationShortcutItemType</key>
-			<string>ai.agentpocket.newsession</string>
-		</dict>
-		<dict>
-			<key>UIApplicationShortcutItemIconType</key>
-			<string>UIApplicationShortcutIconTypeSearch</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Settings</string>
-			<key>UIApplicationShortcutItemType</key>
-			<string>ai.agentpocket.settings</string>
-		</dict>
+		<string>_http._tcp</string>
+		<string>_https._tcp</string>
 	</array>
 </dict>
 </plist>

@@ -1,60 +1,32 @@
 import SwiftUI
 
-// MARK: - Status Indicator
 struct StatusIndicator: View {
-    enum Status {
-        case connected
-        case connecting
-        case disconnected
-        case error
-        case idle
-    }
-    
-    let status: Status
-    var size: CGFloat = 8
-    
-    @State private var isPulsing = false
-    
+    let status: ConversationStatus
+
     var body: some View {
         Circle()
             .fill(color)
-            .frame(width: size, height: size)
-            .overlay(
-                Circle()
-                    .stroke(color.opacity(0.5), lineWidth: 2)
-                    .scaleEffect(isPulsing ? 2.5 : 1.0)
-                    .opacity(isPulsing ? 0 : 1)
-            )
-            .onChange(of: status, initial: true) { _, newStatus in
-                updateAnimation(for: newStatus)
-            }
-            .accessibilityLabel("Status: \(String(describing: status))")
+            .frame(width: 8, height: 8)
+            .accessibilityLabel(accessibilityText)
     }
-    
-    // MARK: - Helpers
+
     private var color: Color {
         switch status {
-        case .connected: return Brand.success
-        case .connecting: return Brand.warning
-        case .disconnected: return Brand.textMuted
-        case .error: return Brand.error
-        case .idle: return Brand.textSubtle
+        case .idle: return .gray
+        case .streaming: return Theme.cyanAccent
+        case .toolRunning: return .yellow
+        case .waitingPermission: return .orange
+        case .error: return .red
         }
     }
-    
-    private var shouldPulse: Bool {
-        status == .connecting
-    }
-    
-    private func updateAnimation(for currentStatus: Status) {
-        if currentStatus == .connecting {
-            withAnimation(.easeOut(duration: 1.5).repeatForever(autoreverses: false)) {
-                isPulsing = true
-            }
-        } else {
-            withAnimation(.easeOut(duration: 0.3)) {
-                isPulsing = false
-            }
+
+    private var accessibilityText: String {
+        switch status {
+        case .idle: return "Status: idle"
+        case .streaming: return "Status: streaming response"
+        case .toolRunning: return "Status: running tool"
+        case .waitingPermission: return "Status: waiting for permission"
+        case .error: return "Status: error"
         }
     }
 }

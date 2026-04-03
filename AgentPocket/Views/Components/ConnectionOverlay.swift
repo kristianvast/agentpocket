@@ -1,102 +1,86 @@
 import SwiftUI
 
-// MARK: - Connection Overlay
 struct ConnectionOverlay: View {
-    enum State {
-        case connecting
-        case disconnected(String?)
-        case error(String)
-    }
+    let serverName: String
+    let serverType: ServerType
+    let error: String?
+    let onRetry: (() -> Void)?
+    let onCancel: () -> Void
     
-    let state: State
-    var onRetry: (() -> Void)?
-    var onGoHome: (() -> Void)?
+    @State private var isAnimating = false
     
     var body: some View {
         ZStack {
-            Brand.background
-                .opacity(0.95)
+            Theme.background.opacity(0.9)
                 .ignoresSafeArea()
-                .background(.ultraThinMaterial)
             
-            VStack(spacing: 32) {
-                iconView
-                textView
-                actionButtons
-            }
-            .padding(32)
-        }
-    }
-    
-    // MARK: - Subviews
-    @ViewBuilder
-    private var iconView: some View {
-        Group {
-            switch state {
-            case .connecting:
-                ProgressView()
-                    .controlSize(.extraLarge)
-                    .tint(Brand.cyan)
-            case .disconnected, .error:
-                Image(systemName: "wifi.slash")
-                    .font(.system(size: 48, weight: .light))
-                    .foregroundStyle(Brand.error)
-                    .symbolEffect(.bounce, value: true)
-            }
-        }
-        .frame(height: 64)
-    }
-    
-    private var textView: some View {
-        VStack(spacing: 12) {
-            Text(title)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(Brand.textPrimary)
-            
-            if let subtitle = subtitle {
-                Text(subtitle)
-                    .font(.body)
-                    .foregroundStyle(Brand.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private var actionButtons: some View {
-        if case .connecting = state {
-            // No buttons while connecting
-        } else {
-            HStack(spacing: 16) {
-                if let onGoHome {
-                    Button("Home", action: onGoHome)
-                        .brandButton()
+            VStack(spacing: Theme.spacingLG) {
+                if let error = error {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.red)
+                    
+                    Text("Connection Failed")
+                        .font(Theme.titleFont)
+                        .foregroundStyle(Theme.textPrimary)
+                    
+                    Text(error)
+                        .font(Theme.bodyFont)
+                        .foregroundStyle(Theme.textMuted)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    
+                    HStack(spacing: Theme.spacingMD) {
+                        Button("Cancel", action: onCancel)
+                            .buttonStyle(.bordered)
+                            .tint(Theme.textMuted)
+                        
+                        if let onRetry = onRetry {
+                            Button("Retry", action: onRetry)
+                                .buttonStyle(.borderedProminent)
+                                .tint(Theme.cyanAccent)
+                                .foregroundStyle(.black)
+                        }
+                    }
+                    .padding(.top, Theme.spacingSM)
+                } else {
+                    Image(systemName: serverType.iconSystemName)
+                        .font(.system(size: 48))
+                        .foregroundStyle(Theme.cyanAccent)
+                        .scaleEffect(isAnimating ? 1.1 : 0.9)
+                        .opacity(isAnimating ? 1.0 : 0.5)
+                        .animation(
+                            .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
+                            value: isAnimating
+                        )
+                        .onAppear {
+                            isAnimating = true
+                        }
+                    
+                    HStack(spacing: 2) {
+                        Text("Connecting to \(serverName)")
+                            .font(Theme.headlineFont)
+                            .foregroundStyle(Theme.textPrimary)
+                        
+                        Text("...")
+                            .font(Theme.headlineFont)
+                            .foregroundStyle(Theme.textPrimary)
+                            .opacity(isAnimating ? 1.0 : 0.0)
+                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isAnimating)
+                    }
+                    
+                    Button("Cancel", action: onCancel)
+                        .buttonStyle(.bordered)
+                        .tint(Theme.textMuted)
+                        .padding(.top, Theme.spacingSM)
                 }
-                
-                if let onRetry {
-                    Button("Retry", action: onRetry)
-                        .brandButton(prominent: true)
-                }
             }
-            .padding(.top, 8)
+            .padding(Theme.spacingXL)
+            .background(Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusLG))
+            .shadow(radius: 20)
+            .padding(Theme.spacingLG)
         }
-    }
-    
-    // MARK: - Helpers
-    private var title: String {
-        switch state {
-        case .connecting: return "Connecting..."
-        case .disconnected: return "Disconnected"
-        case .error: return "Connection Error"
-        }
-    }
-    
-    private var subtitle: String? {
-        switch state {
-        case .connecting: return "Establishing secure connection to server"
-        case .disconnected(let msg): return msg ?? "The server connection was lost."
-        case .error(let msg): return msg
-        }
+        .transition(.opacity)
     }
 }
