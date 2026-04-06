@@ -6,7 +6,7 @@
 
 ## The Idea
 
-One AI brain (Gemma 4) running on your home PC, connected to everything:
+One AI brain running on your home PC, connected to everything:
 - **Sees your screen** 24/7 via screenpipe
 - **Talks to you** from your phone via AgentPocket
 - **Chats with you** from your desktop via Quickshell sidebar
@@ -36,8 +36,8 @@ That's it. Everything below is just where each step runs and how they connect.
                         │                                  │
                         │  ┌───────────┐  ┌────────────┐  │
                         │  │  Ollama   │  │ screenpipe  │  │
-                        │  │  Gemma 4  │  │ screen      │  │
-                        │  │  E2B      │  │ memory      │  │
+                        │  │  (local   │  │ screen      │  │
+                        │  │  model)   │  │ memory      │  │
                         │  │  :11434   │  │ :3030       │  │
                         │  └─────▲─────┘  └──────▲──────┘  │
                         │        │               │         │
@@ -47,7 +47,7 @@ That's it. Everything below is just where each step runs and how they connect.
                         │  │                             │  │
                         │  │  Receives text from phone   │  │
                         │  │  Grabs screen context       │  │
-                        │  │  Calls Gemma 4              │  │
+                        │  │  Calls the local model      │  │
                         │  │  Streams response back      │  │
                         │  └──────────▲──────────────────┘  │
                         │             │                     │
@@ -78,8 +78,8 @@ That's it. Everything below is just where each step runs and how they connect.
 
 ### Scenario 1: At your desk
 
-You hit **Super+A**. Quickshell sidebar opens with Gemma 4 already
-connected via Ollama. You type or talk. It responds instantly.
+You hit **Super+A**. Quickshell sidebar opens with your local model
+already connected via Ollama. You type or talk. It responds instantly.
 It already knows what's on your screen via screenpipe.
 
 ### Scenario 2: On the go
@@ -90,19 +90,19 @@ lock screen (Live Activity). You tap it and ask:
 > "What was I working on before I left?"
 
 Phone transcribes → sends to PC → bridge grabs screen context →
-Gemma 4 answers → phone speaks it back. **2 seconds.**
+the model answers → phone speaks it back. **2 seconds.**
 
 ### Scenario 3: In bed
 
 > "What was that error I was debugging before dinner?"
 
 Bridge queries screenpipe for 6-8pm, finds the stack trace,
-Gemma 4 summarizes: *"TypeScript type error in the bridge server —
+the model summarizes: *"TypeScript type error in the bridge server —
 the WebSocket message type didn't match."*
 
 ---
 
-## What Gemma 4 Actually Sees
+## What the Model Actually Sees
 
 screenpipe captures screenshots on OS events (app switch, click,
 typing pause), OCRs them, and stores the text with timestamps.
@@ -126,7 +126,7 @@ User: what was I just doing?
 Plain text context. No special vision needed — OCR already happened.
 
 For visual questions ("what's that chart?"), the bridge sends the
-actual screenshot as an image to Gemma 4's multimodal endpoint.
+actual screenshot as an image to the model's multimodal endpoint.
 
 ---
 
@@ -136,7 +136,7 @@ actual screenshot as an image to Gemma 4's multimodal endpoint.
 
 | Component           | Runs as         | Port   | Resource Use                        |
 |---------------------|-----------------|--------|-------------------------------------|
-| **Ollama + Gemma 4** | systemd service | 11434  | ~7GB VRAM loaded, 0 when idle       |
+| **Ollama (local model)** | systemd service | 11434  | ~7GB VRAM loaded, 0 when idle       |
 | **screenpipe**       | systemd service | 3030   | ~5-10% CPU, ~200MB RAM              |
 | **Bridge server**    | systemd service | 8765   | ~30MB RAM, near-zero CPU when idle  |
 | **Quickshell**       | already running | —      | Direct Ollama connection (built-in) |
@@ -250,8 +250,8 @@ background processing — keeps the audio pipeline alive without foregrounding.
 
 ### Quickshell sidebar (already works)
 
-The AI chat at **Super+A** already supports Ollama. Once Ollama is running
-with Gemma 4, type `/model gemma4:e2b` in the sidebar. Done.
+The AI chat at **Super+A** already supports Ollama. Once Ollama is running,
+select your model in the sidebar. Done.
 
 Config: `~/.config/illogical-impulse/config.json` → `ai.extraModels`
 
@@ -259,7 +259,7 @@ Config: `~/.config/illogical-impulse/config.json` → `ai.extraModels`
 
 Event-driven screen + audio capture. Runs as a background service.
 REST API at `:3030`. The bridge queries it — screenpipe doesn't need
-to know about Gemma 4 or AgentPocket.
+to know about the local model or AgentPocket.
 
 ---
 
@@ -267,7 +267,7 @@ to know about Gemma 4 or AgentPocket.
 
 | Phase | What                                          | Effort        |
 |-------|-----------------------------------------------|---------------|
-| **1** | Install Ollama + Gemma 4 + Quickshell sidebar | 30 minutes    |
+| **1** | Install Ollama + your model + Quickshell sidebar | 30 minutes    |
 | **2** | Write bridge server (WebSocket → Ollama)      | One afternoon  |
 | **3** | AgentPocket: voice + WebSocket + display       | A few days     |
 | **4** | Live Activity on lock screen                   | A day          |
@@ -286,7 +286,7 @@ Phase 6 = polish.
 ### Near-term
 
 - **Screen-aware answers** — "What's that error?" reads your terminal.
-  "What's in that chart?" sends the screenshot to Gemma 4 vision.
+  "What's in that chart?" sends the screenshot to the model's vision endpoint.
 - **Conversation history** — SQLite in the bridge, persist across sessions.
   "What did I ask you yesterday about the Heimdal cron jobs?"
 - **Quickshell notifications** — When the phone asks something, show the
@@ -297,11 +297,11 @@ Phase 6 = polish.
 - **Hermes agent integration** — Swap the simple bridge for Hermes
   (Nous Research). Gets you self-improving skills, persistent memory,
   and autonomous task execution. Same Ollama backend.
-- **Heimdal bridge** — Connect Gemma 4 as a secondary model in Heimdal.
+- **Heimdal bridge** — Connect a local model as a secondary in Heimdal.
   Route cheap tasks (daily briefs, content drafts, cron jobs) to local
   inference. Keep Claude for complex work. Zero API cost for routine work.
-- **Multi-model routing** — E2B for fast answers, swap to 26B MoE
-  (when VRAM allows) for hard reasoning. Bridge decides based on
+- **Multi-model routing** — Small fast model for quick answers, swap to a
+  larger MoE (when VRAM allows) for hard reasoning. Bridge decides based on
   question complexity.
 
 ### Long-term
@@ -322,11 +322,11 @@ Phase 6 = polish.
 
 | Reality                              | Impact                                  | Mitigation                                     |
 |--------------------------------------|------------------------------------------|-------------------------------------------------|
-| Gemma 4 E2B is a 2.3B model         | Won't solve hard math or complex code    | Use Claude/bigger model for hard stuff           |
+| Small local models have real limits  | Won't solve hard math or complex code    | Use Claude/bigger model for hard stuff           |
 | Ollama unloads after 5min idle       | First request after idle: ~3-5s delay    | Set `OLLAMA_KEEP_ALIVE=-1`                       |
 | screenpipe on Wayland                | Event capture may be partial             | Test first, fall back to periodic screenshots   |
 | iOS Live Activity 8-hour limit       | Widget dies after 8 hours                | Auto-restart in background                       |
-| 12GB VRAM shared with desktop        | Can't run huge models alongside desktop  | E2B fits in 7GB, leaves room for everything     |
+| 12GB VRAM shared with desktop        | Can't run huge models alongside desktop  | Small models fit in 7GB, leaves room for everything |
 | Tailscale required                   | Phone must be on Tailscale network       | Already set up, zero-config                      |
 
 ---

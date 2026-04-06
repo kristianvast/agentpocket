@@ -68,8 +68,9 @@ final class ServerManager {
         }
 
         if let state = try? decoder.decode(PersistedState.self, from: data) {
-            servers = state.servers
-            activeServerID = state.activeServerID
+            // Filter out deprecated server types (e.g. OpenClaw)
+            servers = state.servers.filter { ServerType.allCases.contains($0.serverType) }
+            activeServerID = servers.contains(where: { $0.id == state.activeServerID }) ? state.activeServerID : servers.first?.id
             hasCompletedOnboarding = state.hasCompletedOnboarding ?? false
             requireFaceID = state.requireFaceID ?? false
         } else {

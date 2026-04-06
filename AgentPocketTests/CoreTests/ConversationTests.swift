@@ -130,11 +130,11 @@ final class ConversationTests: XCTestCase {
     }
 
     func testMetadataPartialFields() throws {
-        let metadata = ConversationMetadata(serverType: .openClaw, totalCost: 1.50)
+        let metadata = ConversationMetadata(serverType: .hermes, totalCost: 1.50)
         let data = try encoder.encode(metadata)
         let decoded = try decoder.decode(ConversationMetadata.self, from: data)
 
-        XCTAssertEqual(decoded.serverType, .openClaw)
+        XCTAssertEqual(decoded.serverType, .hermes)
         XCTAssertNil(decoded.agentName)
         XCTAssertEqual(decoded.totalCost, 1.50)
     }

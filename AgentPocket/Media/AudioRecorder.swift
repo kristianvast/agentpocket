@@ -14,14 +14,21 @@ final class AudioRecorder: NSObject {
     private(set) var audioData: Data?
     private(set) var permissionDenied = false
     private(set) var error: AudioRecorderError?
+    private(set) var didHitMaxDuration = false
+
+    var backgroundMode = false
 
     // MARK: - Private
 
     private var recorder: AVAudioRecorder?
     private var timer: Timer?
     private var fileURL: URL?
+    private var maxDurationTimer: Timer?
+    private var interruptionObserver: (any NSObjectProtocol)?
 
     // MARK: - Configuration
+
+    static let maxDuration: TimeInterval = 300
 
     private static let sampleRate: Double = 16_000
     private static let channels: Int = 1
@@ -62,6 +69,19 @@ final class AudioRecorder: NSObject {
     func startRecording() async {
         error = nil
         audioData = nil
+        didHitMaxDuration = false
+
+        do {
+            let systemAttributes = try FileManager.default.attributesOfFileSystem(forPath: NSTemporaryDirectory())
+            let freeSpace = (systemAttributes[.systemFreeSize] as? Int64) ?? 0
+            guard freeSpace > 50_000_000 else {
+                error = .insufficientDiskSpace
+                return
+            }
+        } catch {
+            self.error = .insufficientDiskSpace
+            return
+        }
 
         guard await requestPermission() else {
             error = .permissionDenied
@@ -70,8 +90,13 @@ final class AudioRecorder: NSObject {
 
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
+            var options: AVAudioSession.CategoryOptions = [.defaultToSpeaker]
+            if backgroundMode {
+                options.insert(.mixWithOthers)
+            }
+            try session.setCategory(.playAndRecord, mode: .default, options: options)
             try session.setActive(true)
+            setupInterruptionHandling()
 
             let url = makeTemporaryFileURL()
             fileURL = url
@@ -89,6 +114,10 @@ final class AudioRecorder: NSObject {
             isRecording = true
             duration = 0
             startTimer()
+
+            if backgroundMode {
+                startMaxDurationTimer()
+            }
         } catch {
             self.error = .sessionSetupFailed(error.localizedDescription)
             cleanup()
@@ -100,6 +129,8 @@ final class AudioRecorder: NSObject {
 
         recorder?.stop()
         stopTimer()
+        stopMaxDurationTimer()
+        removeInterruptionObserver()
         isRecording = false
 
         if let url = fileURL, let data = try? Data(contentsOf: url) {
@@ -107,7 +138,9 @@ final class AudioRecorder: NSObject {
             duration = recorder?.currentTime ?? duration
         }
 
-        deactivateSession()
+        if !backgroundMode {
+            deactivateSession()
+        }
         cleanup()
     }
 
@@ -117,6 +150,8 @@ final class AudioRecorder: NSObject {
         recorder?.stop()
         recorder?.deleteRecording()
         stopTimer()
+        stopMaxDurationTimer()
+        removeInterruptionObserver()
         isRecording = false
         audioData = nil
         duration = 0
@@ -129,6 +164,11 @@ final class AudioRecorder: NSObject {
         audioData = nil
         duration = 0
         error = nil
+        didHitMaxDuration = false
+    }
+
+    func deactivateSession() {
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     // MARK: - Audio Content
@@ -155,6 +195,11 @@ final class AudioRecorder: NSObject {
             Task { @MainActor [weak self] in
                 guard let self, self.isRecording, let recorder = self.recorder else { return }
                 self.duration = recorder.currentTime
+                if self.duration >= Self.maxDuration {
+                    self.didHitMaxDuration = true
+                    self.stopRecording()
+                    return
+                }
             }
         }
     }
@@ -164,8 +209,57 @@ final class AudioRecorder: NSObject {
         timer = nil
     }
 
-    private func deactivateSession() {
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    private func startMaxDurationTimer() {
+        maxDurationTimer = Timer.scheduledTimer(withTimeInterval: SharedConstants.maxRecordingDuration, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.stopRecording()
+            }
+        }
+    }
+
+    private func stopMaxDurationTimer() {
+        maxDurationTimer?.invalidate()
+        maxDurationTimer = nil
+    }
+
+    private func setupInterruptionHandling() {
+        removeInterruptionObserver()
+
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            Task { @MainActor [weak self] in
+                self?.handleInterruption(notification)
+            }
+        }
+    }
+
+    private func handleInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+
+        switch type {
+        case .began:
+            if isRecording {
+                stopRecording()
+            }
+        case .ended:
+            break
+        @unknown default:
+            break
+        }
+    }
+
+    private func removeInterruptionObserver() {
+        if let observer = interruptionObserver {
+            NotificationCenter.default.removeObserver(observer)
+            interruptionObserver = nil
+        }
     }
 
     private func cleanup() {
@@ -202,6 +296,7 @@ enum AudioRecorderError: LocalizedError, Hashable {
     case recordingFailed
     case sessionSetupFailed(String)
     case encodingFailed(String)
+    case insufficientDiskSpace
 
     var errorDescription: String? {
         switch self {
@@ -213,6 +308,8 @@ enum AudioRecorderError: LocalizedError, Hashable {
             "Audio session setup failed: \(detail)"
         case .encodingFailed(let detail):
             "Audio encoding failed: \(detail)"
+        case .insufficientDiskSpace:
+            "Not enough disk space to record audio"
         }
     }
 }

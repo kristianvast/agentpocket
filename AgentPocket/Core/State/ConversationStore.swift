@@ -10,6 +10,8 @@ final class ConversationStore {
     var streamingText: [String: String] = [:]
     var statuses: [ConversationID: ConversationStatus] = [:]
     var loadedProjectID: ProjectID?
+    private var deltaBuffer: [String: String] = [:]
+    private let deltaThrottler = Throttler(delay: 0.1)
 
     var activeConversation: Conversation? {
         guard let id = activeConversationID else { return nil }
@@ -68,17 +70,62 @@ final class ConversationStore {
 
     func applyDelta(conversationID: ConversationID, messageID: MessageID, contentID: ContentID, delta: String) {
         let key = "\(messageID):\(contentID)"
-        if streamingText[key] == nil {
+        if deltaBuffer[key] == nil {
             if let msgIdx = messages[conversationID]?.firstIndex(where: { $0.id == messageID }),
                let contentIdx = messages[conversationID]?[msgIdx].content.firstIndex(where: { $0.id == contentID }),
                case .text(let data) = messages[conversationID]?[msgIdx].content[contentIdx].data {
-                streamingText[key] = data.text + delta
+                deltaBuffer[key] = data.text + delta
             } else {
-                streamingText[key] = delta
+                deltaBuffer[key] = delta
             }
         } else {
-            streamingText[key]?.append(delta)
+            deltaBuffer[key]?.append(delta)
         }
+
+        deltaThrottler.throttle { [self] in
+            self.flushAllDeltaBuffers()
+        }
+    }
+
+    private func flushDeltaBuffer(for key: String) {
+        guard let buffered = deltaBuffer[key] else { return }
+        streamingText[key] = buffered
+    }
+
+    func flushAllDeltaBuffers() {
+        deltaThrottler.cancel()
+        for (key, value) in deltaBuffer {
+            streamingText[key] = value
+        }
+    }
+
+    func cleanupAbortedState(conversationID: ConversationID) {
+        flushAllDeltaBuffers()
+
+        if let msgs = messages[conversationID] {
+            for (msgIdx, message) in msgs.enumerated() {
+                for (contentIdx, content) in message.content.enumerated() {
+                    if case .tool(var toolData) = content.data,
+                       toolData.status == .pending || toolData.status == .running {
+                        toolData.status = .failed
+                        toolData.error = "Aborted by user"
+                        messages[conversationID]?[msgIdx].content[contentIdx].data = .tool(toolData)
+                    }
+                }
+            }
+        }
+
+        let messageIDs = Set((messages[conversationID] ?? []).map(\.id))
+        let keysToRemove = streamingText.keys.filter { key in
+            messageIDs.contains(String(key.split(separator: ":").first ?? ""))
+        }
+
+        for key in keysToRemove {
+            streamingText.removeValue(forKey: key)
+            deltaBuffer.removeValue(forKey: key)
+        }
+
+        statuses[conversationID] = .idle
     }
 
     func getStreamingText(messageID: MessageID, contentID: ContentID) -> String? {
@@ -96,7 +143,9 @@ final class ConversationStore {
     }
 
     func clearStreamingText(messageID: MessageID, contentID: ContentID) {
-        streamingText.removeValue(forKey: "\(messageID):\(contentID)")
+        let key = "\(messageID):\(contentID)"
+        streamingText.removeValue(forKey: key)
+        deltaBuffer.removeValue(forKey: key)
     }
 
     func clear() {
@@ -105,5 +154,7 @@ final class ConversationStore {
         messages = [:]
         streamingText = [:]
         statuses = [:]
+        deltaBuffer = [:]
+        deltaThrottler.cancel()
     }
 }

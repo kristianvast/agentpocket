@@ -5,6 +5,7 @@ struct ServerListView: View {
     @State private var showingAddServer = false
     @State private var showingSettings = false
     @State private var connectingServer: ServerConfig?
+    @State private var editingServer: ServerConfig?
 
     var body: some View {
         NavigationStack {
@@ -19,7 +20,7 @@ struct ServerListView: View {
                         }
                         .contextMenu {
                             Button {
-                                
+                                editingServer = server
                             } label: {
                                 Label("Edit", systemImage: "pencil")
                             }
@@ -54,6 +55,9 @@ struct ServerListView: View {
             .sheet(isPresented: $showingAddServer) {
                 AddServerView()
             }
+            .sheet(item: $editingServer) { server in
+                AddServerView(editingServer: server)
+            }
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
@@ -62,7 +66,7 @@ struct ServerListView: View {
                     ContentUnavailableView(
                         "No Servers",
                         systemImage: "server.rack",
-                        description: Text("Add an OpenCode, OpenClaw, or Hermes server to get started.")
+                        description: Text("Add an OpenCode or Hermes server to get started.")
                     )
                 }
             }
@@ -100,7 +104,6 @@ struct ServerCard: View {
     var iconColor: Color {
         switch server.serverType {
         case .openCode: return Theme.cyanAccent
-        case .openClaw: return Theme.emerald
         case .hermes: return Theme.orange
         }
     }

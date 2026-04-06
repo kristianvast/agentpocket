@@ -4,7 +4,7 @@ This document provides essential context for AI agents working in the AgentPocke
 
 ## Project Overview
 
-AgentPocket is a native iOS client (SwiftUI, Swift 5.9) for interacting with AI coding agents. It connects to multiple server backends (OpenCode, OpenClaw, Hermes) via a unified protocol, supporting streaming chat, tool use, permissions, voice/image messaging, and terminal output.
+AgentPocket is a native iOS client (SwiftUI, Swift 5.9) for interacting with AI coding agents. It connects to server backends (OpenCode, Hermes) via a unified protocol, supporting streaming chat, tool use, permissions, voice/image messaging, and terminal output.
 
 ```
 ├── AgentPocket/
@@ -17,8 +17,7 @@ AgentPocket is a native iOS client (SwiftUI, Swift 5.9) for interacting with AI 
 │   ├── Networking/         # HTTPClient, SSEClient, WebSocketClient
 │   ├── Servers/
 │   │   ├── OpenCode/       # OpenCode server adapter (SSE-based)
-│   │   ├── OpenClaw/       # OpenClaw server adapter
-│   │   └── Hermes/         # Hermes server adapter
+│   │   └── Hermes/         # Hermes server adapter (OpenAI-compatible)
 │   ├── Views/
 │   │   ├── Components/     # CodeBlockView, MarkdownRenderer, StreamingTextView, etc.
 │   │   ├── ContentRoot/    # Root navigation
@@ -131,22 +130,16 @@ protocol AgentServer: AnyObject, Sendable {
 - `SSEClient` — Server-Sent Events for streaming (used by OpenCode)
 - `WebSocketClient` — WebSocket connections
 
-## Network Debugging (mitmproxy-mcp)
+## Network Debugging (mitmproxy)
 
-Configured in `opencode.json`. Runs via `uvx --python 3.13 mitmproxy-mcp`.
+Use the **`network-debug` skill** for the full setup guide, standalone mitmdump commands, log parsing, and certificate trust instructions.
 
-Use the `network-debug` skill for the full workflow. Key points:
+This project uses **standalone mitmdump** (not the MCP proxy) because the primary test device is a physical iPhone connected via Tailscale. The MCP proxy binds to localhost only and can't receive traffic from physical devices.
 
-- **Always scope immediately**: `set_scope(["your-domain"])` to filter Apple telemetry noise
-- **Port 8888** — don't use 8080
-- **CA cert**: `~/.mitmproxy/mitmproxy-ca-cert.pem` — must be trusted in Keychain and Simulator
-
-### Physical Device Setup
-
-Use the **Tailscale IP** (`100.86.4.25`) as the proxy address — it's stable across networks unlike DHCP-assigned local IPs.
+### Quick Reference
 
 ```bash
-# Start mitmdump on all interfaces with full body logging
+# Start mitmdump (all interfaces, full body logging, Apple passthrough)
 nohup uvx --python 3.13 --from mitmproxy mitmdump \
   --listen-host 0.0.0.0 --listen-port 8888 \
   --set confdir=$HOME/.mitmproxy \
@@ -158,29 +151,26 @@ nohup uvx --python 3.13 --from mitmproxy mitmdump \
   --ignore-hosts '^(.+\.)?push\.apple\.com:443$' > /tmp/mitmproxy.log 2>&1 &
 ```
 
-On iPhone: **Settings → Wi-Fi → (i) → HTTP Proxy → Manual**
-- Server: `100.86.4.25` (Tailscale IP — both devices must have Tailscale running)
-- Port: `8888`
+**iPhone proxy**: `100.86.4.25:8888` (Tailscale IP — stable across networks). With `--ignore-hosts`, the proxy can stay on permanently.
 
-**When done**: Turn off the proxy on your iPhone. Don't leave it on — switching networks with a stale proxy breaks all connectivity.
-
-**Note**: `--ignore-hosts` regex matches against `host:port` (e.g. `gateway.icloud.com:443`), not just the hostname. The `:443$` suffix is required. `flow_detail=4` enables full request/response body logging — without it you only see status codes and sizes. SSE stream bodies are only logged when the connection closes.
-
-### Simulator Setup
-
-The simulator inherits macOS system proxy settings:
+### Filtering AgentPocket Traffic
 
 ```bash
-networksetup -setwebproxy "Wi-Fi" 127.0.0.1 8888
-networksetup -setsecurewebproxy "Wi-Fi" 127.0.0.1 8888
+# OpenCode server traffic only
+grep "liv.agrointel.no" /tmp/mitmproxy.log | grep -E "GET |POST |PUT |DELETE |<< HTTP" | tail -30
+
+# Errors from the server
+grep "liv.agrointel.no" /tmp/mitmproxy.log | grep -E "4[0-9]{2}|5[0-9]{2}" | tail -20
+
+# Full error details (body after status line)
+grep -A30 "liv.agrointel.no.*\(400\|401\|403\|404\|500\)" /tmp/mitmproxy.log | tail -40
 ```
 
-**Always disable when done** — leaving this on routes all Mac traffic through mitmproxy:
+### Notes
 
-```bash
-networksetup -setwebproxystate "Wi-Fi" off
-networksetup -setsecurewebproxystate "Wi-Fi" off
-```
+- **SSE streaming**: The OpenCode adapter uses SSE (`SSEClient`). Mitmproxy only logs SSE stream response bodies when the connection closes — you won't see partial streaming content in the log.
+- **`flow_detail=4`** is critical — without it, response bodies are not logged.
+- **CA cert**: `~/.mitmproxy/mitmproxy-ca-cert.pem` — must be trusted on the phone (Safari → `http://mitm.it`).
 
 ## Code Style
 

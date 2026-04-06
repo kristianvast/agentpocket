@@ -147,26 +147,22 @@ final class ServerConfigTests: XCTestCase {
 
     func testServerTypeRawValues() {
         XCTAssertEqual(ServerType.openCode.rawValue, "opencode")
-        XCTAssertEqual(ServerType.openClaw.rawValue, "openclaw")
         XCTAssertEqual(ServerType.hermes.rawValue, "hermes")
     }
 
     func testServerTypeDisplayName() {
         XCTAssertEqual(ServerType.openCode.displayName, "OpenCode")
-        XCTAssertEqual(ServerType.openClaw.displayName, "OpenClaw")
         XCTAssertEqual(ServerType.hermes.displayName, "Hermes")
     }
 
     func testServerTypeIconSystemName() {
         XCTAssertFalse(ServerType.openCode.iconSystemName.isEmpty)
-        XCTAssertFalse(ServerType.openClaw.iconSystemName.isEmpty)
         XCTAssertFalse(ServerType.hermes.iconSystemName.isEmpty)
     }
 
     func testServerTypeCaseIterable() {
-        XCTAssertEqual(ServerType.allCases.count, 3)
+        XCTAssertEqual(ServerType.allCases.count, 2)
         XCTAssertTrue(ServerType.allCases.contains(.openCode))
-        XCTAssertTrue(ServerType.allCases.contains(.openClaw))
         XCTAssertTrue(ServerType.allCases.contains(.hermes))
     }
 

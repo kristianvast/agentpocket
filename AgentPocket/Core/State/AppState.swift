@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 @Observable
 @MainActor
@@ -18,7 +19,18 @@ final class AppState {
     private(set) var isLoadingProjects = false
     private(set) var loadingMessages: Set<ConversationID> = []
 
+    var pendingAutoRecord = false
+    var activityManager = AgentActivityManager()
+    private(set) var isAutoRecording = false
+
     private var eventTask: Task<Void, Never>?
+    private var autoRecorder = AudioRecorder()
+    private var stopRecordingTask: Task<Void, Never>?
+    private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+
+    init() {
+        observeStopRecording()
+    }
 
     func connect(to config: ServerConfig) async {
         isConnecting = true
@@ -33,6 +45,10 @@ final class AppState {
             serverManager.markConnected(id: config.id)
             await loadProjects()
             startEventStream()
+
+            if pendingAutoRecord {
+                await triggerAutoRecordIfPending()
+            }
         } catch {
             connectionError = error.localizedDescription
             isConnected = false
@@ -50,6 +66,10 @@ final class AppState {
         projectStore.clear()
         conversationStore.clear()
         pendingPermissions = []
+
+        if isAutoRecording {
+            cancelAutoRecord()
+        }
     }
 
     func loadProjects() async {
@@ -60,7 +80,6 @@ final class AppState {
             let projects = try await server.listProjects()
             projectStore.setProjects(projects)
         } catch {
-            // If project listing fails (non-OpenCode server), fall back to flat conversation list
             projectStore.setProjects([])
         }
         isLoadingProjects = false
@@ -69,16 +88,13 @@ final class AppState {
     func selectProject(_ project: Project) async {
         projectStore.activeProjectID = project.id
 
-        // If we already have conversations cached for this project, show them immediately
         if conversationStore.loadedProjectID == project.id && !conversationStore.conversations.isEmpty {
-            // Refresh in background without showing loading state
             Task {
                 await refreshConversationsForProject(project)
             }
             return
         }
 
-        // Different project or no cache — full load
         await loadConversationsForProject(project)
     }
 
@@ -101,7 +117,7 @@ final class AppState {
             let conversations = try await server.listConversations(forProject: project)
             conversationStore.setConversations(conversations, forProject: project.id)
         } catch {
-            // Silent fail on background refresh — user already sees cached data
+            // Silent fail on background refresh
         }
     }
 
@@ -251,10 +267,170 @@ final class AppState {
     func abortMessage(conversationID: ConversationID) async throws {
         guard let server = activeServer else { throw AgentPocketError.notConnected }
         try await server.abortMessage(conversationID: conversationID)
+        conversationStore.cleanupAbortedState(conversationID: conversationID)
     }
 
     func replyToPermission(id: PermissionID, allow: Bool) async throws {
         guard let server = activeServer else { throw AgentPocketError.notConnected }
         try await server.replyToPermission(id: id, allow: allow)
+    }
+
+    // MARK: - Auto-Record (Widget → Lock Screen Flow)
+
+    func triggerAutoRecordIfPending() async {
+        guard pendingAutoRecord else { return }
+        pendingAutoRecord = false
+
+        guard isConnected else { return }
+
+        if projectStore.activeProjectID == nil, let first = projectStore.projects.first {
+            await selectProject(first)
+        }
+
+        if conversationStore.activeConversationID == nil {
+            if let latest = conversationStore.conversations.first {
+                conversationStore.activeConversationID = latest.id
+            } else {
+                do {
+                    let newConv = try await createConversation()
+                    conversationStore.activeConversationID = newConv.id
+                } catch {
+                    return
+                }
+            }
+        }
+
+        guard let conversationID = conversationStore.activeConversationID else { return }
+
+        await startAutoRecord(conversationID: conversationID)
+    }
+
+    private func startAutoRecord(conversationID: ConversationID) async {
+        isAutoRecording = true
+        autoRecorder.backgroundMode = true
+
+        await autoRecorder.startRecording()
+
+        guard autoRecorder.isRecording else {
+            isAutoRecording = false
+            autoRecorder.backgroundMode = false
+            return
+        }
+
+        let serverName = serverManager.activeServer?.name ?? "Agent"
+        let conversationTitle = conversationStore.activeConversation?.title ?? "New Session"
+
+        activityManager.startRecording(
+            serverName: serverName,
+            conversationTitle: conversationTitle,
+            conversationID: conversationID
+        )
+    }
+
+    private func handleStopRecording() async {
+        guard isAutoRecording else { return }
+
+        autoRecorder.stopRecording()
+        isAutoRecording = false
+
+        guard let audioData = autoRecorder.audioData,
+              let conversationID = conversationStore.activeConversationID else {
+            activityManager.fail(message: "No audio recorded")
+            autoRecorder.backgroundMode = false
+            autoRecorder.deactivateSession()
+            return
+        }
+
+        await sendAudioWithBackgroundTask(data: audioData, conversationID: conversationID)
+    }
+
+    private func cancelAutoRecord() {
+        autoRecorder.cancelRecording()
+        autoRecorder.backgroundMode = false
+        isAutoRecording = false
+        activityManager.endActivity()
+    }
+
+    private func sendAudioWithBackgroundTask(data: Data, conversationID: ConversationID) async {
+        activityManager.transitionToProcessing()
+
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask { [weak self] in
+            Task { @MainActor in
+                self?.activityManager.fail(message: "Background time expired")
+                self?.endBackgroundTask()
+            }
+        }
+
+        let audioContent = MessageContent(
+            type: .audio,
+            data: .audio(AudioContent(data: data, mimeType: "audio/wav"))
+        )
+
+        let userMessage = Message(
+            id: UUID().uuidString,
+            conversationID: conversationID,
+            role: .user,
+            content: [audioContent]
+        )
+        conversationStore.addOrUpdateMessage(userMessage, for: conversationID)
+
+        guard let server = activeServer else {
+            activityManager.fail(message: "Not connected to server")
+            endBackgroundTask()
+            return
+        }
+
+        var responseText = ""
+        let stream = server.sendMessage(conversationID: conversationID, content: [audioContent])
+
+        do {
+            for try await event in stream {
+                handleEvent(event)
+
+                if case .contentDelta(_, _, _, let delta) = event {
+                    responseText += delta
+                    activityManager.updateResponse(text: responseText)
+                }
+            }
+            activityManager.complete(finalText: responseText)
+        } catch {
+            activityManager.fail(message: error.localizedDescription)
+
+            let errorContent = MessageContent(
+                type: .error,
+                data: .error(ErrorContent(
+                    name: "SendError",
+                    message: error.localizedDescription,
+                    isRetryable: true
+                ))
+            )
+            let errorMessage = Message(
+                id: UUID().uuidString,
+                conversationID: conversationID,
+                role: .assistant,
+                content: [errorContent]
+            )
+            conversationStore.addOrUpdateMessage(errorMessage, for: conversationID)
+        }
+
+        autoRecorder.backgroundMode = false
+        autoRecorder.deactivateSession()
+        endBackgroundTask()
+    }
+
+    private func endBackgroundTask() {
+        guard backgroundTaskID != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(backgroundTaskID)
+        backgroundTaskID = .invalid
+    }
+
+    private func observeStopRecording() {
+        stopRecordingTask = Task { [weak self] in
+            let notifications = NotificationCenter.default.notifications(named: SharedConstants.stopRecordingNotification)
+            for await _ in notifications {
+                guard !Task.isCancelled else { break }
+                await self?.handleStopRecording()
+            }
+        }
     }
 }

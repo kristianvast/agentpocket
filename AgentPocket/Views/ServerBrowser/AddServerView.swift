@@ -14,6 +14,8 @@ struct AddServerView: View {
     
     @State private var isTesting = false
     @State private var testResult: Result<Bool, Error>? = nil
+    
+    var editingServer: ServerConfig?
 
     var body: some View {
         NavigationStack {
@@ -86,7 +88,7 @@ struct AddServerView: View {
                     }
                 }
             }
-            .navigationTitle("Add Server")
+            .navigationTitle(editingServer != nil ? "Edit Server" : "Add Server")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -99,6 +101,27 @@ struct AddServerView: View {
                         saveServer()
                     }
                     .disabled(name.isEmpty || url.isEmpty)
+                }
+            }
+            .onAppear {
+                if let server = editingServer {
+                    name = server.name
+                    url = server.url
+                    serverType = server.serverType
+                    switch server.auth {
+                    case .none:
+                        authType = .none
+                    case .bearerToken(let t):
+                        authType = .bearer
+                        token = t
+                    case .basic(let u, let p):
+                        authType = .basic
+                        username = u
+                        password = p
+                    case .deviceToken(let t):
+                        authType = .device
+                        token = t
+                    }
                 }
             }
         }
@@ -150,8 +173,28 @@ struct AddServerView: View {
     }
     
     private func saveServer() {
-        let config = createConfig()
-        appState.serverManager.add(config)
+        if let existing = editingServer {
+            let auth: ServerAuth
+            switch authType {
+            case .none: auth = .none
+            case .bearer: auth = .bearerToken(token)
+            case .basic: auth = .basic(username: username, password: password)
+            case .device: auth = .deviceToken(token)
+            }
+            let config = ServerConfig(
+                id: existing.id,
+                name: name.isEmpty ? existing.name : name,
+                url: url,
+                serverType: serverType,
+                auth: auth,
+                lastConnected: existing.lastConnected,
+                isDefault: existing.isDefault
+            )
+            appState.serverManager.update(config)
+        } else {
+            let config = createConfig()
+            appState.serverManager.add(config)
+        }
         dismiss()
     }
 }

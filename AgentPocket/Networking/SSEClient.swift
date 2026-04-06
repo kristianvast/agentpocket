@@ -4,12 +4,14 @@ final class SSEClient: Sendable {
     let baseURL: String
     let path: String
     let authHeader: String?
+    let maxRetries: Int
     private let session: URLSession
 
-    init(baseURL: String, path: String, authorizationHeader: String? = nil) {
+    init(baseURL: String, path: String, authorizationHeader: String? = nil, maxRetries: Int = 10) {
         self.baseURL = baseURL
         self.path = path
         self.authHeader = authorizationHeader
+        self.maxRetries = maxRetries
 
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 300
@@ -22,20 +24,29 @@ final class SSEClient: Sendable {
             let task = Task {
                 var backoffNanoseconds: UInt64 = 500_000_000
                 let maxBackoff: UInt64 = 30_000_000_000
+                var lastEventID: String?
+                var retryCount = 0
 
-                while !Task.isCancelled {
+                while !Task.isCancelled && retryCount < maxRetries {
                     do {
-                        try await consumeConnection(continuation: continuation)
+                        lastEventID = try await consumeConnection(continuation: continuation, lastEventID: lastEventID)
                         backoffNanoseconds = 500_000_000
+                        retryCount = 0
                     } catch is CancellationError {
                         break
                     } catch {
-                        try? await Task.sleep(nanoseconds: backoffNanoseconds)
+                        retryCount += 1
+                        let jitteredNanoseconds = UInt64(Double(backoffNanoseconds) * Double.random(in: 0.5...1.5))
+                        try? await Task.sleep(nanoseconds: jitteredNanoseconds)
                         backoffNanoseconds = min(backoffNanoseconds * 2, maxBackoff)
                     }
                 }
 
-                continuation.finish()
+                if retryCount >= maxRetries && !Task.isCancelled {
+                    continuation.finish(throwing: AgentPocketError.networkError(NSError(domain: "SSEClient", code: -1, userInfo: [NSLocalizedDescriptionKey: "Max reconnection attempts exhausted"])))
+                } else {
+                    continuation.finish()
+                }
             }
 
             continuation.onTermination = { _ in
@@ -44,8 +55,8 @@ final class SSEClient: Sendable {
         }
     }
 
-    private func consumeConnection(continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation) async throws {
-        let request = try makeRequest()
+    private func consumeConnection(continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation, lastEventID: String?) async throws -> String? {
+        let request = try makeRequest(lastEventID: lastEventID)
         let (bytes, response) = try await session.bytes(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -58,6 +69,7 @@ final class SSEClient: Sendable {
 
         var eventType: String?
         var dataLines: [String] = []
+        var currentEventID = lastEventID
 
         for try await line in bytes.lines {
             if Task.isCancelled { throw CancellationError() }
@@ -82,11 +94,15 @@ final class SSEClient: Sendable {
                 dataLines.append(value)
             } else if line.hasPrefix("event:") {
                 eventType = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+            } else if line.hasPrefix("id:") {
+                currentEventID = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces)
             }
         }
+
+        return currentEventID
     }
 
-    private func makeRequest() throws -> URLRequest {
+    private func makeRequest(lastEventID: String? = nil) throws -> URLRequest {
         guard var components = URLComponents(string: baseURL) else {
             throw AgentPocketError.invalidURL
         }
@@ -109,6 +125,9 @@ final class SSEClient: Sendable {
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         if let authHeader {
             request.setValue(authHeader, forHTTPHeaderField: "Authorization")
+        }
+        if let lastEventID {
+            request.setValue(lastEventID, forHTTPHeaderField: "Last-Event-ID")
         }
         return request
     }

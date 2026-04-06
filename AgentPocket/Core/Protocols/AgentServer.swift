@@ -4,13 +4,11 @@ import Foundation
 
 enum ServerType: String, Codable, Hashable, Sendable, CaseIterable {
     case openCode = "opencode"
-    case openClaw = "openclaw"
     case hermes = "hermes"
 
     var displayName: String {
         switch self {
         case .openCode: return "OpenCode"
-        case .openClaw: return "OpenClaw"
         case .hermes: return "Hermes"
         }
     }
@@ -18,7 +16,6 @@ enum ServerType: String, Codable, Hashable, Sendable, CaseIterable {
     var iconSystemName: String {
         switch self {
         case .openCode: return "chevron.left.forwardslash.chevron.right"
-        case .openClaw: return "hand.raised.fingers.spread"
         case .hermes: return "brain.head.profile"
         }
     }

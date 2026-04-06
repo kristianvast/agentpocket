@@ -21,21 +21,25 @@ final class WebSocketClient: NSObject, @unchecked Sendable {
     private let authHeader: String?
     private let pingInterval: TimeInterval
     private let maxReconnectDelay: TimeInterval
+    private let maxReconnectAttempts: Int
+    private var reconnectAttempts = 0
 
     var onMessage: ((WebSocketMessage) -> Void)?
     var onConnect: (() -> Void)?
     var onDisconnect: ((Error?) -> Void)?
 
-    init(url: URL, authorizationHeader: String? = nil, pingInterval: TimeInterval = 15, maxReconnectDelay: TimeInterval = 30) {
+    init(url: URL, authorizationHeader: String? = nil, pingInterval: TimeInterval = 15, maxReconnectDelay: TimeInterval = 30, maxReconnectAttempts: Int = 10) {
         self.url = url
         self.authHeader = authorizationHeader
         self.pingInterval = pingInterval
         self.maxReconnectDelay = maxReconnectDelay
+        self.maxReconnectAttempts = maxReconnectAttempts
         super.init()
     }
 
     func connect() {
         guard case .idle = state else { return }
+        reconnectAttempts = 0
         state = .connecting
         establishConnection()
     }
@@ -129,12 +133,22 @@ final class WebSocketClient: NSObject, @unchecked Sendable {
 
     private func scheduleReconnect() {
         reconnectTask = Task { [weak self] in
-            var delay: UInt64 = 500_000_000
-            let maxDelay = UInt64((self?.maxReconnectDelay ?? 30) * 1_000_000_000)
+            var delay: TimeInterval = 0.5
+            let maxDelay = self?.maxReconnectDelay ?? 30
 
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: delay)
-                guard !Task.isCancelled, let self else { break }
+                guard let self else { break }
+
+                if self.reconnectAttempts >= self.maxReconnectAttempts {
+                    self.state = .error("Max reconnection attempts exhausted")
+                    self.onDisconnect?(NSError(domain: "WebSocketClient", code: -1, userInfo: [NSLocalizedDescriptionKey: "Max reconnection attempts exhausted"]))
+                    break
+                }
+
+                self.reconnectAttempts += 1
+                let jitteredDelay = UInt64(delay * Double.random(in: 0.5...1.5) * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: jitteredDelay)
+                guard !Task.isCancelled else { break }
 
                 self.state = .connecting
                 self.establishConnection()
@@ -152,6 +166,7 @@ extension WebSocketClient: URLSessionWebSocketDelegate {
     nonisolated func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
         Task { @MainActor [weak self] in
             self?.state = .connected
+            self?.reconnectAttempts = 0
             self?.reconnectTask?.cancel()
             self?.reconnectTask = nil
             self?.onConnect?()

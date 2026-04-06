@@ -4,9 +4,6 @@
     "xcode": {
       "type": "local",
       "command": ["xcrun", "mcpbridge"]
-    },
-    "mitmproxy": {
-      "enabled": true
     }
   }
 }

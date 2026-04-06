@@ -4,6 +4,7 @@ struct MessageTimeline: View {
     let conversationID: ConversationID
     @Environment(AppState.self) private var appState
     @State private var initialLoadDone = false
+    @State private var scrollTrigger = false
 
     private var messages: [Message] {
         appState.conversationStore.messages[conversationID] ?? []
@@ -13,10 +14,21 @@ struct MessageTimeline: View {
         appState.loadingMessages.contains(conversationID)
     }
 
+    private var isStreaming: Bool {
+        appState.conversationStore.statuses[conversationID] == .streaming ||
+        appState.conversationStore.statuses[conversationID] == .toolRunning
+    }
+
+    private var lastMessageStreamingText: String? {
+        guard let lastMessage = messages.last else { return nil }
+        let streaming = appState.conversationStore.streamingTextForMessage(lastMessage.id)
+        return streaming.values.first
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(spacing: Theme.spacingMD) {
+                LazyVStack(spacing: Theme.spacingMD) {
                     if isLoading && messages.isEmpty {
                         ForEach(0..<3, id: \.self) { _ in
                             SkeletonMessageRow()
@@ -43,6 +55,16 @@ struct MessageTimeline: View {
                     withAnimation(.easeOut(duration: 0.2)) {
                         proxy.scrollTo(messages.last?.id, anchor: .bottom)
                     }
+                }
+            }
+            .onChange(of: lastMessageStreamingText) { _, _ in
+                if isStreaming {
+                    scrollTrigger.toggle()
+                }
+            }
+            .onChange(of: scrollTrigger) { _, _ in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo(messages.last?.id, anchor: .bottom)
                 }
             }
         }

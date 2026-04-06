@@ -24,10 +24,13 @@ targets:
     platform: iOS
     sources:
       - AgentPocket
+      - Shared
     dependencies:
       - package: SwiftTerm
       - package: MarkdownUI
       - package: Highlightr
+      - target: AgentPocketWidget
+        embed: true
     settings:
       base:
         MARKETING_VERSION: "2.0.0"
@@ -37,10 +40,31 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: CVJWS3US42
         PRODUCT_BUNDLE_IDENTIFIER: ai.agentpocket.app
+        CODE_SIGN_ENTITLEMENTS: AgentPocket/AgentPocket.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: false
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+
+  AgentPocketWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - AgentPocketWidget
+      - Shared
+    settings:
+      base:
+        MARKETING_VERSION: "2.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        INFOPLIST_FILE: AgentPocketWidget/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CVJWS3US42
+        PRODUCT_BUNDLE_IDENTIFIER: ai.agentpocket.app.widget
+        CODE_SIGN_ENTITLEMENTS: AgentPocketWidget/AgentPocketWidget.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         SWIFT_STRICT_CONCURRENCY: complete
 

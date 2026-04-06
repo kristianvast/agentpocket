@@ -21,6 +21,11 @@ struct PromptBar: View {
         if case .previewing = inputState { return true }
         return false
     }
+
+    private var isAgentWorking: Bool {
+        let status = appState.conversationStore.statuses[conversationID]
+        return status == .streaming || status == .toolRunning
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -76,7 +81,19 @@ struct PromptBar: View {
                         .foregroundStyle(Theme.textPrimary)
                 }
                 
-                if text.isEmpty && !isPreviewing {
+                if isAgentWorking {
+                    Button {
+                        HapticManager.impact(.medium)
+                        Task {
+                            try? await appState.abortMessage(conversationID: conversationID)
+                        }
+                    } label: {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(.red)
+                    }
+                    .padding(.bottom, 2)
+                } else if text.isEmpty && !isPreviewing {
                     VoiceRecordButton(isRecording: Binding(
                         get: {
                             if case .recording = inputState { return true }

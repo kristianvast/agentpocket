@@ -39,12 +39,6 @@ struct OnboardingView: View {
                         )
                         
                         OnboardingServerCard(
-                            title: "OpenClaw",
-                            icon: "hand.raised.fingers.spread",
-                            color: Theme.emerald
-                        )
-                        
-                        OnboardingServerCard(
                             title: "Hermes",
                             icon: "brain.head.profile",
                             color: Theme.orange

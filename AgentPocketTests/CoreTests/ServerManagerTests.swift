@@ -189,7 +189,7 @@ final class ServerManagerTests: XCTestCase {
     func testPersistencePreservesAuthTypes() throws {
         let bearerConfig = ServerConfig(name: "Bearer", url: "http://a", serverType: .openCode, auth: .bearerToken("tok"))
         let basicConfig = ServerConfig(name: "Basic", url: "http://b", serverType: .hermes, auth: .basic(username: "u", password: "p"))
-        let deviceConfig = ServerConfig(name: "Device", url: "http://c", serverType: .openClaw, auth: .deviceToken("dev"))
+        let deviceConfig = ServerConfig(name: "Device", url: "http://c", serverType: .hermes, auth: .deviceToken("dev"))
 
         manager.add(bearerConfig)
         manager.add(basicConfig)

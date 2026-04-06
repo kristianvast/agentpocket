@@ -1,11 +1,11 @@
 # AgentPocket
 
-A native iOS client for AI agent servers. Connect to OpenCode, OpenClaw, Hermes, or any compatible server and interact with your agents through text, voice, and images.
+A native iOS client for AI agent servers. Connect to OpenCode, Hermes, or any compatible server and interact with your agents through text, voice, and images.
 
 ## Features
 
-- **Multi-Server Support** — Connect to OpenCode, OpenClaw, and Hermes agents from a single app
-- **Voice Messaging** — Record and send voice messages to multimodal AI models (Gemma 4, etc.)
+- **Multi-Server Support** — Connect to OpenCode and Hermes agents from a single app
+- **Voice Messaging** — Record and send voice messages to multimodal AI models
 - **Image Input** — Capture or select images and send them as context to your agent
 - **AI Chat** — Streaming responses with markdown rendering and syntax-highlighted code blocks
 - **Tool Execution** — Watch tools run in real-time with expandable input/output cards
@@ -19,7 +19,6 @@ A native iOS client for AI agent servers. Connect to OpenCode, OpenClaw, Hermes,
 | Server | Protocol | Status |
 |--------|----------|--------|
 | [OpenCode](https://github.com/sst/opencode) | REST + SSE | Full support |
-| [OpenClaw](https://github.com/openclaw/openclaw) | WebSocket + HTTP | Full support |
 | [Hermes](https://github.com/nousresearch/hermes-agent) | OpenAI-compatible | Full support |
 
 ## Requirements
@@ -53,7 +52,6 @@ AgentPocket/
 ├── Networking/             HTTPClient, SSEClient, WebSocketClient
 ├── Servers/
 │   ├── OpenCode/           REST + SSE adapter
-│   ├── OpenClaw/           WebSocket + HTTP adapter
 │   └── Hermes/             OpenAI-compatible adapter
 ├── Media/                  Audio recording, playback, camera, encoding
 └── Views/
@@ -72,7 +70,7 @@ AgentPocket/
 | UI | SwiftUI (iOS 17+) |
 | State | `@Observable` (Observation framework) |
 | Networking | URLSession (async/await) |
-| Real-time | SSE (custom parser) + WebSocket |
+| Real-time | SSE (custom parser) |
 | Markdown | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) |
 | Syntax Highlighting | [Highlightr](https://github.com/raspu/Highlightr) |
 

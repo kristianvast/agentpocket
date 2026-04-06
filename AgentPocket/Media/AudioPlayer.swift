@@ -18,6 +18,7 @@ final class AudioPlayer: NSObject {
 
     private var player: AVAudioPlayer?
     private var timer: Timer?
+    private var interruptionObserver: (any NSObjectProtocol)?
 
     // MARK: - Playback
 
@@ -29,6 +30,7 @@ final class AudioPlayer: NSObject {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
+            setupInterruptionHandling()
 
             let audioPlayer = try AVAudioPlayer(data: data)
             audioPlayer.delegate = self
@@ -59,6 +61,7 @@ final class AudioPlayer: NSObject {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
+            setupInterruptionHandling()
 
             let audioPlayer = try AVAudioPlayer(contentsOf: url)
             audioPlayer.delegate = self
@@ -103,6 +106,7 @@ final class AudioPlayer: NSObject {
         isPlaying = false
         currentTime = 0
         stopTimer()
+        removeInterruptionObserver()
         deactivateSession()
         cleanup()
     }
@@ -140,6 +144,51 @@ final class AudioPlayer: NSObject {
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
+    }
+
+    private func setupInterruptionHandling() {
+        removeInterruptionObserver()
+
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            Task { @MainActor [weak self] in
+                self?.handleInterruption(notification)
+            }
+        }
+    }
+
+    private func handleInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+
+        switch type {
+        case .began:
+            if isPlaying {
+                pause()
+            }
+        case .ended:
+            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                if options.contains(.shouldResume) {
+                    resume()
+                }
+            }
+        @unknown default:
+            break
+        }
+    }
+
+    private func removeInterruptionObserver() {
+        if let observer = interruptionObserver {
+            NotificationCenter.default.removeObserver(observer)
+            interruptionObserver = nil
+        }
     }
 
     private func deactivateSession() {
