@@ -74,12 +74,10 @@ struct MessageBubble: View {
             ToolCallView(content: toolContent)
             
         case .reasoning(let reasoningContent):
-            DisclosureGroup("Reasoning") {
-                Text(reasoningContent.text)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textMuted)
-            }
-            .tint(Theme.cyanAccent)
+            ThinkingBlock(
+                reasoningContent: reasoningContent,
+                streamingText: streamingText[content.id]
+            )
             
         case .error(let errorContent):
             HStack {
@@ -92,6 +90,95 @@ struct MessageBubble: View {
             .padding(8)
             .background(Color.red.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+}
+
+private struct ThinkingBlock: View {
+    let reasoningContent: ReasoningContent
+    let streamingText: String?
+    
+    @State private var isExpanded: Bool = false
+    
+    private var isStreaming: Bool {
+        streamingText != nil
+    }
+    
+    private var displayText: String {
+        if let streaming = streamingText {
+            return streaming
+        }
+        return reasoningContent.text
+    }
+    
+    private var headerText: String {
+        if isStreaming {
+            return "Thinking..."
+        }
+        if let tokens = reasoningContent.tokenCount {
+            return "Reasoned for \(tokens) tokens"
+        }
+        return "Reasoning"
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(Theme.quickAnimation) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.cyanAccent)
+                    
+                    Text(headerText)
+                        .font(Theme.captionFont)
+                        .foregroundStyle(Theme.textMuted)
+                    
+                    Spacer()
+                    
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.textMuted)
+                }
+            }
+            .buttonStyle(.plain)
+            
+            if isExpanded || isStreaming {
+                HStack(alignment: .top, spacing: Theme.spacingSM) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(Theme.cyanAccent.opacity(0.4))
+                        .frame(width: 3)
+                    
+                    if reasoningContent.isRedacted {
+                        Text("Content not available")
+                            .font(Theme.captionFont)
+                            .italic()
+                            .foregroundStyle(Theme.textMuted.opacity(0.6))
+                    } else {
+                        Text(displayText)
+                            .font(Theme.captionFont)
+                            .foregroundStyle(Theme.textMuted)
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(.top, 6)
+            }
+        }
+        .padding(Theme.spacingSM)
+        .background(Theme.surface.opacity(0.3))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusSM))
+        .onChange(of: isStreaming) { _, streaming in
+            if streaming {
+                isExpanded = true
+            }
+        }
+        .onAppear {
+            if isStreaming {
+                isExpanded = true
+            }
         }
     }
 }

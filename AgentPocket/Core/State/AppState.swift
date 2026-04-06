@@ -208,10 +208,14 @@ final class AppState {
         case .permissionResolved(let id):
             pendingPermissions.removeAll { $0.id == id }
 
-        case .statusChanged(let convID, let status):
-            conversationStore.statuses[convID] = status
+         case .statusChanged(let convID, let status):
+             conversationStore.statuses[convID] = status
+             if status == .idle {
+                 conversationStore.flushAllDeltaBuffers()
+                 conversationStore.clearStreamingTextForConversation(convID)
+             }
 
-        case .heartbeat:
+         case .heartbeat:
             break
         }
     }

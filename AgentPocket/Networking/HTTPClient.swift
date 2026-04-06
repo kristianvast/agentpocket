@@ -40,7 +40,8 @@ struct HTTPClient: Sendable {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let request = try makeRequest(path: path, method: "POST", body: body)
+                    var request = try makeRequest(path: path, method: "POST", body: body)
+                    request.timeoutInterval = 300
                     let (bytes, response) = try await session.bytes(for: request)
 
                     guard let httpResponse = response as? HTTPURLResponse else {

@@ -25,6 +25,18 @@ struct MessageTimeline: View {
         return streaming.values.first
     }
 
+    private var shouldShowThinkingIndicator: Bool {
+        guard isStreaming else { return false }
+        guard let lastMessage = messages.last else { return true }
+        if lastMessage.role == .user { return true }
+        if lastMessage.role == .assistant {
+            let hasContent = !lastMessage.content.isEmpty
+            let hasStreaming = !appState.conversationStore.streamingTextForMessage(lastMessage.id).isEmpty
+            return !hasContent && !hasStreaming
+        }
+        return false
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -39,6 +51,12 @@ struct MessageTimeline: View {
                         let streamingText = appState.conversationStore.streamingTextForMessage(message.id)
                         MessageBubble(message: message, streamingText: streamingText)
                             .id(message.id)
+                    }
+                    
+                    if shouldShowThinkingIndicator {
+                        ThinkingIndicatorView()
+                            .id("thinking-indicator")
+                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
                 }
                 .padding()
@@ -67,6 +85,47 @@ struct MessageTimeline: View {
                     proxy.scrollTo(messages.last?.id, anchor: .bottom)
                 }
             }
+            .onChange(of: shouldShowThinkingIndicator) { _, showing in
+                if showing {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo("thinking-indicator", anchor: .bottom)
+                    }
+                }
+            }
         }
+    }
+}
+
+private struct ThinkingIndicatorView: View {
+    @State private var animating = false
+    
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .fill(Theme.cyanAccent)
+                        .frame(width: 6, height: 6)
+                        .opacity(animating ? 1.0 : 0.3)
+                        .animation(
+                            .easeInOut(duration: 0.6)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(index) * 0.2),
+                            value: animating
+                        )
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Theme.surface, lineWidth: 1)
+            )
+            
+            Spacer()
+        }
+        .onAppear { animating = true }
     }
 }

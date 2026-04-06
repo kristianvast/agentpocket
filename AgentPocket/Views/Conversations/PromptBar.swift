@@ -15,7 +15,7 @@ struct PromptBar: View {
     @State private var inputState: InputState = .idle
     @State private var showingImagePicker = false
     @State private var selectedImage: UIImage?
-    @State private var isPulsing = false
+    
     
     private var isPreviewing: Bool {
         if case .previewing = inputState { return true }
@@ -46,23 +46,23 @@ struct PromptBar: View {
             
             HStack(alignment: .bottom, spacing: 12) {
                 if case .recording = inputState {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(.red)
-                            .frame(width: 12, height: 12)
-                            .opacity(isPulsing ? 0.3 : 1.0)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPulsing)
-                            .onAppear { isPulsing = true }
-                            .onDisappear { isPulsing = false }
-                        
-                        Text("Recording...")
-                            .font(Theme.bodyFont)
-                            .foregroundStyle(Theme.textPrimary)
+                    VoiceRecordButton(isRecording: Binding(
+                        get: {
+                            if case .recording = inputState { return true }
+                            return false
+                        },
+                        set: { isRecording in
+                            withAnimation(Theme.springAnimation) {
+                                if isRecording {
+                                    inputState = .recording
+                                } else if case .recording = inputState {
+                                    inputState = .idle
+                                }
+                            }
+                        }
+                    )) { audioData in
+                        sendAudioMessage(audioData)
                     }
-                    .padding(.bottom, 12)
-                    .padding(.leading, 4)
-                    
-                    Spacer()
                 } else {
                     Button {
                         showingImagePicker = true
@@ -109,10 +109,7 @@ struct PromptBar: View {
                             }
                         }
                     )) { audioData in
-                        let duration = (try? AVAudioPlayer(data: audioData))?.duration ?? 0
-                        withAnimation(Theme.springAnimation) {
-                            inputState = .previewing(.audio(data: audioData, duration: duration))
-                        }
+                        sendAudioMessage(audioData)
                     }
                     .padding(.bottom, 4)
                 } else if !isPreviewing {
@@ -144,6 +141,31 @@ struct PromptBar: View {
         }
     }
     
+    private func sendAudioMessage(_ audioData: Data) {
+        let audioContent = MessageContent(
+            type: .audio,
+            data: .audio(AudioContent(data: audioData, mimeType: "audio/wav"))
+        )
+
+        let message = Message(
+            id: UUID().uuidString,
+            conversationID: conversationID,
+            role: .user,
+            content: [audioContent]
+        )
+
+        appState.conversationStore.addOrUpdateMessage(message, for: conversationID)
+
+        withAnimation(Theme.springAnimation) {
+            inputState = .idle
+        }
+
+        Task {
+            await appState.sendMessage(conversationID: conversationID, content: [audioContent])
+            HapticManager.notification(.success)
+        }
+    }
+
     private func sendMessage() {
         var contents: [MessageContent] = []
         

@@ -38,22 +38,30 @@ final class ConversationStore {
         }
     }
 
-    func addOrUpdateMessage(_ message: Message, for conversationID: ConversationID) {
-        if messages[conversationID] == nil {
-            messages[conversationID] = []
-        }
-        if let idx = messages[conversationID]?.firstIndex(where: { $0.id == message.id }) {
-            // Preserve existing content if new message has no content (v2 metadata-only update)
-            if message.content.isEmpty {
-                messages[conversationID]?[idx].metadata = message.metadata
-                messages[conversationID]?[idx].createdAt = message.createdAt
-            } else {
-                messages[conversationID]?[idx] = message
-            }
-        } else {
-            messages[conversationID]?.append(message)
-        }
-    }
+     func addOrUpdateMessage(_ message: Message, for conversationID: ConversationID) {
+         if messages[conversationID] == nil {
+             messages[conversationID] = []
+         }
+         if let idx = messages[conversationID]?.firstIndex(where: { $0.id == message.id }) {
+             // Preserve existing content if new message has no content (v2 metadata-only update)
+             if message.content.isEmpty {
+                 messages[conversationID]?[idx].metadata = message.metadata
+                 messages[conversationID]?[idx].createdAt = message.createdAt
+             } else {
+                 // Clear streaming state for content being replaced
+                 if let oldContent = messages[conversationID]?[idx].content {
+                     for content in oldContent {
+                         let key = "\(message.id):\(content.id)"
+                         streamingText.removeValue(forKey: key)
+                         deltaBuffer.removeValue(forKey: key)
+                     }
+                 }
+                 messages[conversationID]?[idx] = message
+             }
+         } else {
+             messages[conversationID]?.append(message)
+         }
+     }
 
     func removeMessage(messageID: MessageID, conversationID: ConversationID) {
         messages[conversationID]?.removeAll { $0.id == messageID }
@@ -142,13 +150,24 @@ final class ConversationStore {
         return result
     }
 
-    func clearStreamingText(messageID: MessageID, contentID: ContentID) {
-        let key = "\(messageID):\(contentID)"
-        streamingText.removeValue(forKey: key)
-        deltaBuffer.removeValue(forKey: key)
-    }
+     func clearStreamingText(messageID: MessageID, contentID: ContentID) {
+         let key = "\(messageID):\(contentID)"
+         streamingText.removeValue(forKey: key)
+         deltaBuffer.removeValue(forKey: key)
+     }
 
-    func clear() {
+     func clearStreamingTextForConversation(_ conversationID: ConversationID) {
+         guard let msgs = messages[conversationID] else { return }
+         for message in msgs {
+             for content in message.content {
+                 let key = "\(message.id):\(content.id)"
+                 streamingText.removeValue(forKey: key)
+                 deltaBuffer.removeValue(forKey: key)
+             }
+         }
+     }
+
+     func clear() {
         conversations = []
         activeConversationID = nil
         messages = [:]

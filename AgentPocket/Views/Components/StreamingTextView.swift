@@ -5,9 +5,8 @@ struct StreamingTextView: View {
     @State private var showCursor = true
     
     var body: some View {
-        HStack(spacing: 2) {
-            Text(text)
-                .foregroundStyle(Theme.textPrimary)
+        HStack(alignment: .bottom, spacing: 2) {
+            MarkdownRenderer(text: text)
             
             Rectangle()
                 .fill(Theme.cyanAccent)
