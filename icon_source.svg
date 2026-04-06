@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f0f1a"/>
+      <stop offset="100%" stop-color="#1a1a2e"/>
+    </linearGradient>
+    <!-- Glow gradient for pocket -->
+    <linearGradient id="pocketGlow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#00e5ff"/>
+      <stop offset="100%" stop-color="#0077ff"/>
+    </linearGradient>
+    <!-- Node glow -->
+    <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#00e5ff" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Soft ambient glow filter -->
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="bigGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="25" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- iOS mask -->
+    <clipPath id="iosClip">
+      <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224"/>
+    </clipPath>
+  </defs>
+
+  <!-- iOS rounded rect background -->
+  <g clip-path="url(#iosClip)">
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+
+    <!-- Subtle radial light from center-top -->
+    <ellipse cx="512" cy="300" rx="500" ry="400" fill="#1e2a4a" opacity="0.3"/>
+
+    <!-- Pocket shape — a U-shaped pocket with opening at top -->
+    <g transform="translate(512, 520)" filter="url(#bigGlow)">
+      <!-- Pocket body (U shape) -->
+      <path d="M -180,-160 L -180,60 Q -180,180 -60,180 L 60,180 Q 180,180 180,60 L 180,-160"
+            fill="none" stroke="url(#pocketGlow)" stroke-width="6" stroke-linecap="round"/>
+      <!-- Pocket flap / fold line -->
+      <line x1="-200" y1="-160" x2="200" y2="-160"
+            stroke="url(#pocketGlow)" stroke-width="4" opacity="0.5" stroke-linecap="round"/>
+      <!-- Small stitch marks -->
+      <line x1="-160" y1="-145" x2="-160" y2="-130" stroke="#00e5ff" stroke-width="2" opacity="0.3"/>
+      <line x1="-120" y1="-145" x2="-120" y2="-130" stroke="#00e5ff" stroke-width="2" opacity="0.3"/>
+      <line x1="120" y1="-145" x2="120" y2="-130" stroke="#00e5ff" stroke-width="2" opacity="0.3"/>
+      <line x1="160" y1="-145" x2="160" y2="-130" stroke="#00e5ff" stroke-width="2" opacity="0.3"/>
+    </g>
+
+    <!-- Neural network / agent constellation emerging from pocket -->
+    <g filter="url(#softGlow)">
+      <!-- Connection lines (drawn first, behind nodes) -->
+      <!-- Central node to surrounding nodes -->
+      <line x1="512" y1="380" x2="420" y2="300" stroke="#00e5ff" stroke-width="2.5" opacity="0.6"/>
+      <line x1="512" y1="380" x2="604" y2="300" stroke="#00e5ff" stroke-width="2.5" opacity="0.6"/>
+      <line x1="512" y1="380" x2="512" y2="270" stroke="#00e5ff" stroke-width="2.5" opacity="0.6"/>
+      <!-- Upper connections -->
+      <line x1="420" y1="300" x2="512" y2="270" stroke="#00e5ff" stroke-width="2" opacity="0.4"/>
+      <line x1="604" y1="300" x2="512" y2="270" stroke="#00e5ff" stroke-width="2" opacity="0.4"/>
+      <!-- Top node reaching up -->
+      <line x1="512" y1="270" x2="470" y2="210" stroke="#00e5ff" stroke-width="1.5" opacity="0.3"/>
+      <line x1="512" y1="270" x2="554" y2="210" stroke="#00e5ff" stroke-width="1.5" opacity="0.3"/>
+
+      <!-- Nodes — glowing dots -->
+      <!-- Central hub node (largest) -->
+      <circle cx="512" cy="380" r="18" fill="#00e5ff" opacity="0.15"/>
+      <circle cx="512" cy="380" r="10" fill="#00e5ff"/>
+
+      <!-- Mid-level nodes -->
+      <circle cx="420" cy="300" r="14" fill="#00e5ff" opacity="0.15"/>
+      <circle cx="420" cy="300" r="7" fill="#00d4ff"/>
+
+      <circle cx="604" cy="300" r="14" fill="#00e5ff" opacity="0.15"/>
+      <circle cx="604" cy="300" r="7" fill="#00d4ff"/>
+
+      <!-- Top center node -->
+      <circle cx="512" cy="270" r="12" fill="#00e5ff" opacity="0.15"/>
+      <circle cx="512" cy="270" r="6" fill="#00c8ff"/>
+
+      <!-- Tiny top satellite nodes -->
+      <circle cx="470" cy="210" r="4" fill="#00b8ff" opacity="0.7"/>
+      <circle cx="554" cy="210" r="4" fill="#00b8ff" opacity="0.7"/>
+    </g>
+
+    <!-- Subtle particle dots scattered in background -->
+    <circle cx="280" cy="250" r="2" fill="#00e5ff" opacity="0.15"/>
+    <circle cx="750" cy="350" r="1.5" fill="#00e5ff" opacity="0.12"/>
+    <circle cx="350" cy="700" r="1.5" fill="#00e5ff" opacity="0.1"/>
+    <circle cx="700" cy="650" r="2" fill="#00e5ff" opacity="0.1"/>
+    <circle cx="200" cy="500" r="1" fill="#00e5ff" opacity="0.08"/>
+    <circle cx="830" cy="500" r="1.5" fill="#00e5ff" opacity="0.08"/>
+  </g>
+</svg>
