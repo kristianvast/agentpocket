@@ -43,16 +43,13 @@ struct LockScreenEntry: TimelineEntry {
 // MARK: - View
 
 struct LockScreenWidgetView: View {
-    @Environment(\.widgetRenderingMode) var renderingMode
-
     var body: some View {
-        ZStack {
-            AccessoryWidgetBackground()
-
-            Image(systemName: "mic.fill")
-                .font(.title3)
-                .widgetAccentable()
-        }
-        .widgetURL(URL(string: SharedConstants.recordURLString))
+        Image(systemName: "mic.fill")
+            .font(.title3)
+            .widgetAccentable()
+            .containerBackground(for: .widget) {
+                AccessoryWidgetBackground()
+            }
+            .widgetURL(URL(string: SharedConstants.recordURLString))
     }
 }
