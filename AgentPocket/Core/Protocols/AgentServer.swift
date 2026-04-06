@@ -108,6 +108,13 @@ extension AgentServer {
         try await listConversations()
     }
 
+    func listConversations(forProject project: Project) async throws -> [Conversation] {
+        if project.worktree == "/" {
+            return try await listConversations()
+        }
+        return try await listConversations(projectDirectory: project.worktree)
+    }
+
     func replyToPermission(id: PermissionID, allow: Bool) async throws {
         throw AgentPocketError.unsupported("Permissions not supported by \(serverType.displayName)")
     }

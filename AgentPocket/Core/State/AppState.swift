@@ -87,7 +87,7 @@ final class AppState {
 
         isLoadingConversations = true
         do {
-            let conversations = try await server.listConversations(projectDirectory: project.worktree)
+            let conversations = try await server.listConversations(forProject: project)
             conversationStore.setConversations(conversations, forProject: project.id)
         } catch {
             connectionError = "Failed to load sessions: \(error.localizedDescription)"
@@ -98,7 +98,7 @@ final class AppState {
     private func refreshConversationsForProject(_ project: Project) async {
         guard let server = activeServer else { return }
         do {
-            let conversations = try await server.listConversations(projectDirectory: project.worktree)
+            let conversations = try await server.listConversations(forProject: project)
             conversationStore.setConversations(conversations, forProject: project.id)
         } catch {
             // Silent fail on background refresh — user already sees cached data
