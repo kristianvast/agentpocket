@@ -1,0 +1,44 @@
+// Syncthing ignore patterns for AgentPocket
+// Cross-machine sync: Linux (code) ↔ Mac (iOS build/test)
+
+// Git (each machine manages its own)
+.git
+
+// Xcode user data & build artifacts
+**/xcuserdata
+**/DerivedData
+**/build
+*.xcworkspace/xcuserdata
+
+// Generated Xcode project (regenerated via xcodegen)
+AgentPocket.xcodeproj
+
+// Environment and secrets
+.env
+.env.*
+!.env.example
+
+// Editor files
+.vscode
+.idea
+.DS_Store
+
+// Cache
+.cache
+.temp
+
+// Test artifacts
+test-results
+coverage
+
+// Database files
+*.sqlite
+*.sqlite3
+*.db
+
+// Agent orchestration (machine-specific state)
+.opencode
+
+// Credentials
+*.pem
+*.p12
