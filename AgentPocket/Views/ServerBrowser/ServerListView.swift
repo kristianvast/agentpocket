@@ -66,7 +66,7 @@ struct ServerListView: View {
                     ContentUnavailableView(
                         "No Servers",
                         systemImage: "server.rack",
-                        description: Text("Add an OpenCode or Hermes server to get started.")
+                        description: Text("Add an OpenCode server to get started.")
                     )
                 }
             }

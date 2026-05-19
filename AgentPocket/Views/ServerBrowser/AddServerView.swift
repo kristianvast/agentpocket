@@ -28,7 +28,7 @@ struct AddServerView: View {
                         .autocorrectionDisabled()
                     
                     Picker("Type", selection: $serverType) {
-                        ForEach(ServerType.allCases, id: \.self) { type in
+                        ForEach(ServerType.availableForCreation, id: \.self) { type in
                             Text(type.displayName).tag(type)
                         }
                     }

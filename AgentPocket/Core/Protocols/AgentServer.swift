@@ -19,6 +19,14 @@ enum ServerType: String, Codable, Hashable, Sendable, CaseIterable {
         case .hermes: return "brain.head.profile"
         }
     }
+
+    /// Server types currently exposed to users in the new-server picker.
+    /// `hermes` remains in the enum so existing saved configs continue to decode and
+    /// connect, but new servers can only be created for `openCode` while the Hermes
+    /// adapter is being matured. See README "Supported Servers" for status.
+    static var availableForCreation: [ServerType] {
+        [.openCode]
+    }
 }
 
 // MARK: - Capabilities
