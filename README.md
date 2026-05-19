@@ -1,11 +1,11 @@
 # AgentPocket
 
-A native iOS client for AI agent servers. Connect to OpenCode, Hermes, or any compatible server and interact with your agents through text, voice, and images.
+A native iOS client for AI agent servers. Connect to an [OpenCode](https://github.com/sst/opencode) server and interact with your agent through text, voice, and images. A Hermes adapter is scaffolded in the source tree but not yet production-ready — see the *Supported Servers* table below.
 
 ## Features
 
-- **Multi-Server Support** — Connect to OpenCode and Hermes agents from a single app
-- **Voice Messaging** — Record and send voice messages to multimodal AI models
+- **OpenCode Integration** — Full support for the OpenCode REST + SSE protocol: streaming chat, tool execution, permission approval, file access, terminal, and MCP
+- **Voice Messaging** — Record and send voice messages to multimodal AI models (Gemma 4, etc.)
 - **Image Input** — Capture or select images and send them as context to your agent
 - **AI Chat** — Streaming responses with markdown rendering and syntax-highlighted code blocks
 - **Tool Execution** — Watch tools run in real-time with expandable input/output cards
@@ -18,8 +18,8 @@ A native iOS client for AI agent servers. Connect to OpenCode, Hermes, or any co
 
 | Server | Protocol | Status |
 |--------|----------|--------|
-| [OpenCode](https://github.com/sst/opencode) | REST + SSE | Full support |
-| [Hermes](https://github.com/nousresearch/hermes-agent) | OpenAI-compatible | Full support |
+| [OpenCode](https://github.com/sst/opencode) | REST + SSE | Supported — primary target |
+| [Hermes](https://github.com/nousresearch/hermes-agent) | OpenAI-compatible | Planned — adapter scaffolded, hidden from UI (no persistence, no real event stream) |
 
 ## Requirements
 
